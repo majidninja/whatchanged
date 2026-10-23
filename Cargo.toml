@@ -1,0 +1,8 @@
+[package]
+name = "whatchanged"
+version = "0.1.0"
+edition = "2024"
+description = "Show a timeline of what changed on a Linux machine"
+license = "MIT"
+
+[dependencies]
