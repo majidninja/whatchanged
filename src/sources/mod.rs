@@ -5,12 +5,13 @@
 use std::io::ErrorKind;
 
 use crate::timeline::SourceResult;
+use crate::tz::Tz;
 
 pub mod dpkg;
 
 /// Runs every source and returns their results, labelled by name.
-pub fn collect_all(since: i64, offset: i64) -> Vec<(&'static str, SourceResult)> {
-    vec![("dpkg", dpkg::collect(since, offset))]
+pub fn collect_all(since: i64, tz: &Tz) -> Vec<(&'static str, SourceResult)> {
+    vec![("dpkg", dpkg::collect(since, tz))]
 }
 
 /// Reads the given files. Missing files are skipped silently (the package

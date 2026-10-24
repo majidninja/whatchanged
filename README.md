@@ -19,7 +19,9 @@ Early days. Right now it reads the **dpkg log** (Debian, Ubuntu, Mint, ...).
 More sources are coming: dnf, pacman, flatpak, files under `/etc` and
 `~/.config`, systemd units, crontabs, shell startup files, kernels.
 
-Times are currently printed in UTC.
+Times are shown in your local time zone, the same one `date` uses: it comes
+from `$TZ` if that is set, otherwise from `/etc/localtime`. To see the timeline
+in another zone, set it for one run, e.g. `TZ=UTC whatchanged --since 2h`.
 
 ## Install
 

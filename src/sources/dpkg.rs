@@ -8,12 +8,13 @@
 use crate::sources::read_logs;
 use crate::time::DateTime;
 use crate::timeline::{Event, SourceResult};
+use crate::tz::Tz;
 
 const LOGS: &[&str] = &["/var/log/dpkg.log.1", "/var/log/dpkg.log"];
 
-pub fn collect(since: i64, offset: i64) -> SourceResult {
+pub fn collect(since: i64, tz: &Tz) -> SourceResult {
     let (texts, notes) = read_logs("dpkg", LOGS);
-    let events = texts.iter().flat_map(|t| parse(t, since, offset)).collect();
+    let events = texts.iter().flat_map(|t| parse(t, since, tz)).collect();
     SourceResult { events, notes }
 }
 
@@ -24,7 +25,7 @@ struct Action {
     detail: String,
 }
 
-fn parse_line(line: &str, offset: i64) -> Option<Action> {
+fn parse_line(line: &str, tz: &Tz) -> Option<Action> {
     let mut f = line.split_whitespace();
     let date = f.next()?;
     let clock = f.next()?;
@@ -39,7 +40,7 @@ fn parse_line(line: &str, offset: i64) -> Option<Action> {
         "purge" => "purged",
         _ => return None,
     };
-    let time = DateTime::parse(&format!("{date} {clock}"))?.to_epoch(offset);
+    let time = tz.to_epoch(DateTime::parse(&format!("{date} {clock}"))?);
     // Drop the ":amd64" architecture suffix; it's noise for most people.
     let name = pkg.split(':').next().unwrap_or(pkg);
     let detail = match verb {
@@ -53,10 +54,10 @@ fn parse_line(line: &str, offset: i64) -> Option<Action> {
 /// Parses log text, keeping actions at or after `since`. Actions of the same
 /// kind within the same minute are merged into one event, because a single
 /// `apt upgrade` usually touches many packages at once.
-pub fn parse(text: &str, since: i64, offset: i64) -> Vec<Event> {
+pub fn parse(text: &str, since: i64, tz: &Tz) -> Vec<Event> {
     // (time of first action, verb, details) per group.
     let mut groups: Vec<(i64, &'static str, Vec<String>)> = Vec::new();
-    for a in text.lines().filter_map(|l| parse_line(l, offset)) {
+    for a in text.lines().filter_map(|l| parse_line(l, tz)) {
         if a.time < since {
             continue;
         }
@@ -107,7 +108,7 @@ garbage line
 
     #[test]
     fn parses_and_groups() {
-        let events = parse(SAMPLE, 0, 0);
+        let events = parse(SAMPLE, 0, &Tz::utc());
         let texts: Vec<&str> = events.iter().map(|e| e.text.as_str()).collect();
         assert_eq!(
             texts,
@@ -125,7 +126,7 @@ garbage line
         let log: String = (0..8)
             .map(|i| format!("2024-05-01 10:00:0{i} install p{i}:amd64 <none> 1\n"))
             .collect();
-        let events = parse(&log, 0, 0);
+        let events = parse(&log, 0, &Tz::utc());
         assert_eq!(
             events[0].text,
             "installed p0 1, p1 1, p2 1, p3 1, p4 1 and 3 more"
@@ -135,7 +136,7 @@ garbage line
     #[test]
     fn respects_since() {
         // 2024-05-01 12:00 UTC
-        let events = parse(SAMPLE, 1714564800, 0);
+        let events = parse(SAMPLE, 1714564800, &Tz::utc());
         assert_eq!(events.len(), 2);
     }
 }

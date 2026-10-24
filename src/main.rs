@@ -2,6 +2,7 @@ mod since;
 mod sources;
 mod time;
 mod timeline;
+mod tz;
 
 use std::process::ExitCode;
 
@@ -16,7 +17,7 @@ Usage: whatchanged [--since WHEN]
   -h, --help     show this help
   -V, --version  show the version
 
-Times are shown in UTC for now.
+Times are local, taken from $TZ or /etc/localtime.
 ";
 
 fn main() -> ExitCode {
@@ -41,15 +42,15 @@ fn main() -> ExitCode {
         }
     }
 
-    let offset = time::local_offset();
-    let since = match since::parse_since(&since_arg, time::now(), offset) {
+    let (tz, tz_note) = tz::Tz::local();
+    let since = match since::parse_since(&since_arg, time::now(), &tz) {
         Ok(t) => t,
         Err(e) => return fail(&e),
     };
 
     let mut events = Vec::new();
-    let mut notes = Vec::new();
-    for (_name, result) in sources::collect_all(since, offset) {
+    let mut notes: Vec<String> = tz_note.into_iter().collect();
+    for (_name, result) in sources::collect_all(since, &tz) {
         events.extend(result.events);
         notes.extend(result.notes);
     }
@@ -57,7 +58,7 @@ fn main() -> ExitCode {
     if events.is_empty() {
         println!("Nothing changed since {since_arg} (that I could see).");
     } else {
-        print!("{}", timeline::render(&events, offset));
+        print!("{}", timeline::render(&events, &tz));
     }
     if !notes.is_empty() {
         eprintln!();

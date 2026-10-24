@@ -7,7 +7,7 @@ Notes to self between sessions. Read this first.
 1. [x] Timeline model (`Event`, `SourceResult`), plain-text renderer with day headers
 2. [x] `--since` parsing: today, yesterday, 30m/2h/3d/1w, ISO dates
 3. [x] dpkg/apt source (`/var/log/dpkg.log`, `.log.1`), grouped per minute
-4. [ ] Local time zone: parse `/etc/localtime` (TZif) or honour `TZ`; currently UTC
+4. [x] Local time zone: parse `/etc/localtime` (TZif) or honour `TZ`; currently UTC
 5. [ ] Rotated gzip logs (`dpkg.log.2.gz` ...) — needs a tiny inflate or a crate (`flate2`?); decide
 6. [ ] Kernels: `/boot/vmlinuz-*` and `/lib/modules/*` mtimes
 7. [ ] Config files: mtimes under `/etc` and `~/.config` (skip noisy paths, depth limit)
@@ -20,7 +20,8 @@ Notes to self between sessions. Read this first.
 
 ## Layout
 
-- `src/time.rs` — std-only calendar math (Hinnant's days_from_civil), `local_offset()` stub
+- `src/time.rs` — std-only calendar math (Hinnant's days_from_civil)
+- `src/tz.rs` — `Tz`: TZif reader + POSIX TZ rule strings; `Tz::local()`, `offset_at`, `local_time`, `to_epoch`
 - `src/since.rs` — `--since` parsing
 - `src/timeline.rs` — `Event`, `SourceResult`, `render`
 - `src/sources/mod.rs` — `collect_all`, `read_logs` helper (missing = silent, others = note)
@@ -39,3 +40,29 @@ wrong for most users. Plan: honour `TZ=UTC`/fixed offsets, else read the TZif
 file at `/etc/localtime` and find the offset for a given timestamp. Note that
 `local_offset()` returning one number is too simple across DST changes; make it
 `offset_at(ts)`. After that: make sources take a root path for testability.
+
+## 2026-10-24
+
+Local time zones (roadmap 4), still no dependencies. New `src/tz.rs`:
+- Reads TZif (v1, and the 64-bit v2+ section), plus the POSIX rule footer
+  used for times after the last transition. This matters because "slim"
+  zone files hold almost no transitions and rely on the footer.
+- POSIX rules support `Mm.w.d`, `Jn` and `n` day forms, `/time`, quoted
+  `<+0530>` names, and southern-hemisphere DST (start after end).
+- `Tz::local()`: `$TZ` (`:` prefix, absolute path, or name under
+  /usr/share/zoneinfo, or a raw POSIX string), else /etc/localtime. If that
+  fails it falls back to UTC and adds a "Skipped:" note.
+- All `offset: i64` params are now `&Tz`. `today`/`yesterday` go through the
+  calendar, so DST days (23h/25h) give the correct midnight.
+- Tests: synthetic TZif built in the test, POSIX Europe/Sydney rules, plus one
+  `#[ignore]` test against real /usr/share/zoneinfo (`cargo test -- --include-ignored`).
+  Ran it here; it passes. 14 regular tests + 1 ignored.
+
+Note: dpkg logs use local time and we print local time, so dpkg output looks
+the same in every zone. Zones will matter once mtime-based sources (UTC
+epochs) land.
+
+Next: make sources take a root path (roadmap 13), then the kernels source
+(roadmap 6): the first mtime-based source, which finally exercises the time zone code.
+Known limit: a local time that happens twice (the DST fall-back hour) is read
+as the later of the two. Fine for now.

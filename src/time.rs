@@ -1,7 +1,7 @@
 //! Minimal calendar math on top of std, so we don't need a date crate.
 //!
 //! Timestamps are seconds since the Unix epoch (UTC). Wall-clock times read
-//! from logs are converted using a fixed UTC offset (see `local_offset`).
+//! from logs are converted to UTC by the time zone code in `tz.rs`.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -144,14 +144,6 @@ pub fn now() -> i64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
-}
-
-/// The local UTC offset in seconds.
-///
-/// For now this always returns 0 (UTC). Reading /etc/localtime properly is on
-/// the roadmap; until then, log times and output are shown as written in logs.
-pub fn local_offset() -> i64 {
-    0
 }
 
 #[cfg(test)]

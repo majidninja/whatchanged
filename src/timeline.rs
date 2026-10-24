@@ -1,6 +1,6 @@
 //! The timeline: a sorted list of change events from all sources.
 
-use crate::time::DateTime;
+use crate::tz::Tz;
 
 /// One thing that changed on the machine.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,13 +23,13 @@ pub struct SourceResult {
 
 /// Formats events as plain text, one per line. A date header is printed
 /// whenever the day changes, so multi-day timelines stay readable.
-pub fn render(events: &[Event], offset: i64) -> String {
+pub fn render(events: &[Event], tz: &Tz) -> String {
     let mut sorted: Vec<&Event> = events.iter().collect();
     sorted.sort_by_key(|e| e.time);
     let mut out = String::new();
     let mut last_day = None;
     for e in sorted {
-        let dt = DateTime::from_epoch(e.time, offset);
+        let dt = tz.local_time(e.time);
         let day = (dt.year, dt.month, dt.day);
         if last_day != Some(day) {
             out.push_str(&format!("{:04}-{:02}-{:02}\n", dt.year, dt.month, dt.day));
@@ -56,7 +56,7 @@ mod tests {
         };
         // 2024-05-01 09:12 and 2024-05-02 14:40 UTC, given out of order.
         let events = vec![ev(1714660800, "b"), ev(1714554720, "a")];
-        let out = render(&events, 0);
+        let out = render(&events, &Tz::utc());
         assert!(out.starts_with("2024-05-01\n  09:12  pkg     a\n2024-05-02\n"));
     }
 }
