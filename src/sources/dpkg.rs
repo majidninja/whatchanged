@@ -5,6 +5,8 @@
 //! We only use install/upgrade/remove/purge; status and configure lines repeat
 //! the same information.
 
+use std::path::Path;
+
 use crate::sources::read_logs;
 use crate::time::DateTime;
 use crate::timeline::{Event, SourceResult};
@@ -12,8 +14,8 @@ use crate::tz::Tz;
 
 const LOGS: &[&str] = &["/var/log/dpkg.log.1", "/var/log/dpkg.log"];
 
-pub fn collect(since: i64, tz: &Tz) -> SourceResult {
-    let (texts, notes) = read_logs("dpkg", LOGS);
+pub fn collect(root: &Path, since: i64, tz: &Tz) -> SourceResult {
+    let (texts, notes) = read_logs("dpkg", root, LOGS);
     let events = texts.iter().flat_map(|t| parse(t, since, tz)).collect();
     SourceResult { events, notes }
 }
@@ -138,5 +140,14 @@ garbage line
         // 2024-05-01 12:00 UTC
         let events = parse(SAMPLE, 1714564800, &Tz::utc());
         assert_eq!(events.len(), 2);
+    }
+
+    #[test]
+    fn collects_from_root() {
+        let root = crate::sources::TestRoot::new("dpkg");
+        root.file("/var/log/dpkg.log", SAMPLE);
+        let r = collect(&root.0, 0, &Tz::utc());
+        assert_eq!(r.events.len(), 3);
+        assert!(r.notes.is_empty());
     }
 }

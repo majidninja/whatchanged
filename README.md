@@ -11,13 +11,20 @@ $ whatchanged --since yesterday
 2026-10-22
   06:16  pkg     upgraded  nginx 1.26.3-3+deb13u9 -> 1.26.3-3+deb13u10, ca-certificates 20250419 -> 20250419+deb13u1
   18:58  pkg     installed mesa-vulkan-drivers 25.0.7-2+deb13u1
+  18:59  kernel  installed 6.12.113+deb13-amd64 (not booted yet)
 ```
 
 ## Status
 
-Early days. Right now it reads the **dpkg log** (Debian, Ubuntu, Mint, ...).
+Early days. Right now it reads:
+
+- the **dpkg log** (Debian, Ubuntu, Mint, ...)
+- **installed kernels** (any distro). It also tells you which one is running,
+  and marks kernels installed since the last boot as "not booted yet", which
+  is a common answer to "why is it different after the reboot?"
+
 More sources are coming: dnf, pacman, flatpak, files under `/etc` and
-`~/.config`, systemd units, crontabs, shell startup files, kernels.
+`~/.config`, systemd units, crontabs, shell startup files.
 
 Times are shown in your local time zone, the same one `date` uses: it comes
 from `$TZ` if that is set, otherwise from `/etc/localtime`. To see the timeline
@@ -42,6 +49,14 @@ whatchanged --since 3d           # last three days (also: 30m, 1w)
 whatchanged --since today
 whatchanged --since 2024-05-01
 whatchanged --since "2024-05-01 09:00"
+```
+
+If the machine won't boot at all, start a rescue/live USB, mount the broken
+system somewhere, and point `whatchanged` at it:
+
+```
+sudo mount /dev/sda2 /mnt
+whatchanged --root /mnt --since 3d
 ```
 
 When a big `apt install` touches dozens of packages, the first few are listed
