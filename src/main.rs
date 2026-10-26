@@ -55,7 +55,7 @@ fn main() -> ExitCode {
         return fail(&format!("--root: {} is not a directory", root.display()));
     }
 
-    let (tz, tz_note) = tz::Tz::local();
+    let (tz, tz_note) = tz::Tz::local(&root);
     let since = match since::parse_since(&since_arg, time::now(), &tz) {
         Ok(t) => t,
         Err(e) => return fail(&e),

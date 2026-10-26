@@ -12,12 +12,12 @@ Notes to self between sessions. Read this first.
 6. [x] Kernels: `/lib/modules/*` + ctime of the vmlinuz image
 7. [ ] Config files: mtimes under `/etc` and `~/.config` (skip noisy paths, depth limit)
 8. [ ] systemd: unit files and `*.wants/` symlinks in `/etc/systemd` and `~/.config/systemd`
-9. [ ] Shell startup files: `~/.bashrc`, `~/.profile`, `~/.zshrc`, `/etc/profile.d`
+9. [x] Shell startup files: `~/.bashrc`, `~/.profile`, `~/.zshrc`, `/etc/profile.d`
 10. [ ] Crontabs: `/etc/crontab`, `/etc/cron.d`, `/var/spool/cron` (may need root)
 11. [ ] Other package managers: pacman.log, dnf (history db is sqlite — maybe `dnf.rpm.log`), flatpak
 12. [ ] CLI: `--only pkg,config`, `--until`; man page
 13. [x] Sources take a root path (`--root DIR`); `TestRoot` scratch dir for tests
-14. [ ] With `--root`, read the time zone from `<root>/etc/localtime` too
+14. [x] With `--root`, read the time zone from `<root>/etc/localtime` too
 
 ## Layout
 
@@ -28,6 +28,7 @@ Notes to self between sessions. Read this first.
 - `src/sources/mod.rs` — `collect_all`, `read_logs` helper (missing = silent, others = note)
 - `src/sources/dpkg.rs` — dpkg log parser
 - `src/sources/kernel.rs` — installed kernels, running/"not booted yet" markers
+- `src/sources/shell.rs` — shell startup files (system + `/root` + `/home/*`), mtime, kind `env`
 
 ## 2026-10-23
 
@@ -96,3 +97,30 @@ Next: roadmap 14 is small (`Tz::local` taking a root; `$TZ` only when root is
 noisy paths (/etc/ld.so.cache, /etc/mtab, ...), group many files changed in the
 same minute (like dpkg does), and drop files that dpkg itself touched in that
 minute so an upgrade doesn't show 40 "config edited" lines.
+
+## 2026-10-26
+
+Two small steps, still no dependencies:
+
+- **Time zone under `--root`** (roadmap 14). `Tz::local(root)`: `$TZ` is only
+  honoured when root is `/`; otherwise `<root>/etc/localtime` is read. That
+  file is normally an *absolute* symlink (`/usr/share/zoneinfo/...`), which
+  would silently resolve into the host's zoneinfo, so `resolve_under` follows
+  links by hand and re-roots absolute targets (max 8 hops).
+- **Shell startup files** (roadmap 9). New `sources/shell.rs`, kind `env`.
+  System files (`/etc/profile`, `/etc/bash.bashrc`, `/etc/environment`, zsh
+  files, everything in `/etc/profile.d`) plus per-home dotfiles for `/root`
+  and every dir in `/home` (no `$HOME`, so it works with `--root`). Uses
+  mtime. Permission denied (e.g. `/root` as a user) gives one note per
+  directory; missing files are silent. Paths are printed in full
+  (`/home/alice/.bashrc`) since there can be several users.
+  25 tests + 1 ignored.
+
+Seen on the real machine: a new user's `.profile` and `.bashrc` show as two
+`env` lines in the same minute (copied from /etc/skel). Could merge same-minute
+`env` lines like dpkg does; low priority.
+
+Next: config files under /etc and ~/.config (roadmap 7): walk with a depth
+limit, skip noisy paths (/etc/ld.so.cache, /etc/mtab, ...), group many files
+changed in the same minute, drop files dpkg touched in that minute. The shell
+source's files overlap /etc — the config walker should skip those paths.

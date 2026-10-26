@@ -13,12 +13,14 @@ use crate::tz::Tz;
 
 pub mod dpkg;
 pub mod kernel;
+pub mod shell;
 
 /// Runs every source and returns their results, labelled by name.
 pub fn collect_all(root: &Path, since: i64, tz: &Tz) -> Vec<(&'static str, SourceResult)> {
     vec![
         ("dpkg", dpkg::collect(root, since, tz)),
         ("kernel", kernel::collect(root, since)),
+        ("shell", shell::collect(root, since)),
     ]
 }
 

@@ -5,6 +5,8 @@
 //! transition follow the POSIX rule string stored at the end of the file
 //! (e.g. `CET-1CEST,M3.5.0,M10.5.0/3`), which `$TZ` may also contain directly.
 
+use std::path::{Path, PathBuf};
+
 use crate::time::{DAY, DateTime, HOUR, MINUTE, days_from_civil};
 
 /// A time zone: offsets east of UTC, in seconds, that change over time.
@@ -53,18 +55,27 @@ impl Tz {
         }
     }
 
-    /// The zone this machine uses. If it can't be determined, returns UTC
-    /// and a note saying why.
-    pub fn local() -> (Self, Option<String>) {
+    /// The zone of the system at `root` (normally `/`). If it can't be
+    /// determined, returns UTC and a note saying why.
+    ///
+    /// `$TZ` only applies to the live system: with another root we want that
+    /// system's zone, from `<root>/etc/localtime`.
+    pub fn local(root: &Path) -> (Self, Option<String>) {
         match std::env::var("TZ") {
-            Ok(tz) if !tz.is_empty() => Tz::from_tz_var(&tz),
-            _ => match std::fs::read("/etc/localtime") {
-                Ok(data) => match Tz::from_tzif(&data) {
-                    Some(tz) => (tz, None),
-                    None => (Tz::utc(), Some(note("/etc/localtime is not a zone file"))),
-                },
-                Err(e) => (Tz::utc(), Some(note(&format!("/etc/localtime: {e}")))),
-            },
+            Ok(tz) if root == Path::new("/") && !tz.is_empty() => Tz::from_tz_var(&tz),
+            _ => {
+                let path = resolve_under(root, "/etc/localtime");
+                match std::fs::read(&path) {
+                    Ok(data) => match Tz::from_tzif(&data) {
+                        Some(tz) => (tz, None),
+                        None => (
+                            Tz::utc(),
+                            Some(note(&format!("{} is not a zone file", path.display()))),
+                        ),
+                    },
+                    Err(e) => (Tz::utc(), Some(note(&format!("{}: {e}", path.display())))),
+                }
+            }
         }
     }
 
@@ -238,6 +249,23 @@ fn day_in_year(year: i64, d: Day) -> i64 {
             day
         }
     }
+}
+
+/// Follows symlinks for `path` while staying below `root`. `/etc/localtime`
+/// is usually an absolute link like `/usr/share/zoneinfo/Europe/Berlin`;
+/// on a mounted disk that must point into the disk, not into the host.
+fn resolve_under(root: &Path, path: &str) -> PathBuf {
+    let mut full = crate::sources::under(root, path);
+    for _ in 0..8 {
+        let Ok(target) = std::fs::read_link(&full) else {
+            break;
+        };
+        full = match target.strip_prefix("/") {
+            Ok(rel) => root.join(rel),
+            Err(_) => full.parent().unwrap_or(root).join(target),
+        };
+    }
+    full
 }
 
 /// Parses a POSIX TZ string such as `UTC0`, `<+03>-3` or
@@ -433,6 +461,31 @@ mod tests {
         let mut data = tzif(&[], "CET-1");
         data.truncate(60);
         assert_eq!(Tz::from_tzif(&data), None);
+    }
+
+    #[test]
+    fn local_under_root_follows_absolute_link_inside_root() {
+        let root = crate::sources::TestRoot::new("tz-root");
+        root.file("/usr/share/zoneinfo/Test/Zone", "");
+        root.file("/etc/placeholder", "");
+        let zone = crate::sources::under(&root.0, "/usr/share/zoneinfo/Test/Zone");
+        std::fs::write(&zone, tzif(&[], "CET-1")).unwrap();
+        std::os::unix::fs::symlink(
+            "/usr/share/zoneinfo/Test/Zone",
+            crate::sources::under(&root.0, "/etc/localtime"),
+        )
+        .unwrap();
+        let (tz, note) = Tz::local(&root.0);
+        assert_eq!(note, None);
+        assert_eq!(tz.offset_at(0), HOUR);
+    }
+
+    #[test]
+    fn local_under_root_without_zone_is_utc_with_note() {
+        let root = crate::sources::TestRoot::new("tz-none");
+        let (tz, note) = Tz::local(&root.0);
+        assert_eq!(tz, Tz::utc());
+        assert!(note.unwrap().contains("etc/localtime"));
     }
 
     /// Checks against real tzdata. Not run by default because it depends on

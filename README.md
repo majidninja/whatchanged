@@ -22,9 +22,14 @@ Early days. Right now it reads:
 - **installed kernels** (any distro). It also tells you which one is running,
   and marks kernels installed since the last boot as "not booted yet", which
   is a common answer to "why is it different after the reboot?"
+- **shell startup files**: `~/.bashrc`, `~/.profile`, `~/.zshrc`, fish's
+  `config.fish`, `/etc/profile`, `/etc/profile.d/*`, `/etc/environment`, ...
+  for every user in `/home` (and `/root`, if you're allowed to look there).
+  These show up as `env` lines. A bad line in one of them is a common reason
+  for a wrong `PATH` or a terminal that suddenly behaves differently.
 
 More sources are coming: dnf, pacman, flatpak, files under `/etc` and
-`~/.config`, systemd units, crontabs, shell startup files.
+`~/.config`, systemd units, crontabs.
 
 Times are shown in your local time zone, the same one `date` uses: it comes
 from `$TZ` if that is set, otherwise from `/etc/localtime`. To see the timeline
@@ -58,6 +63,9 @@ system somewhere, and point `whatchanged` at it:
 sudo mount /dev/sda2 /mnt
 whatchanged --root /mnt --since 3d
 ```
+
+With `--root`, times are shown in the mounted system's time zone (from its
+`/etc/localtime`), not the rescue system's.
 
 When a big `apt install` touches dozens of packages, the first few are listed
 and the rest are summarised as "and N more".
