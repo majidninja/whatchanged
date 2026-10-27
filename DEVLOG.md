@@ -10,7 +10,7 @@ Notes to self between sessions. Read this first.
 4. [x] Local time zone: parse `/etc/localtime` (TZif) or honour `TZ`; currently UTC
 5. [ ] Rotated gzip logs (`dpkg.log.2.gz` ...) — needs a tiny inflate or a crate (`flate2`?); decide
 6. [x] Kernels: `/lib/modules/*` + ctime of the vmlinuz image
-7. [ ] Config files: mtimes under `/etc` and `~/.config` (skip noisy paths, depth limit)
+7. [~] Config files: mtimes under `/etc` (done) and `~/.config` (skip noisy paths, depth limit)
 8. [ ] systemd: unit files and `*.wants/` symlinks in `/etc/systemd` and `~/.config/systemd`
 9. [x] Shell startup files: `~/.bashrc`, `~/.profile`, `~/.zshrc`, `/etc/profile.d`
 10. [ ] Crontabs: `/etc/crontab`, `/etc/cron.d`, `/var/spool/cron` (may need root)
@@ -28,6 +28,7 @@ Notes to self between sessions. Read this first.
 - `src/sources/mod.rs` — `collect_all`, `read_logs` helper (missing = silent, others = note)
 - `src/sources/dpkg.rs` — dpkg log parser
 - `src/sources/kernel.rs` — installed kernels, running/"not booted yet" markers
+- `src/sources/etc.rs` — files under /etc (no symlinks, depth 6, `NOISY` skip list), grouped per minute, kind `config`
 - `src/sources/shell.rs` — shell startup files (system + `/root` + `/home/*`), mtime, kind `env`
 
 ## 2026-10-23
@@ -124,3 +125,31 @@ Next: config files under /etc and ~/.config (roadmap 7): walk with a depth
 limit, skip noisy paths (/etc/ld.so.cache, /etc/mtab, ...), group many files
 changed in the same minute, drop files dpkg touched in that minute. The shell
 source's files overlap /etc — the config walker should skip those paths.
+
+## 2026-10-27
+
+**Config files under /etc** (first half of roadmap 7), still no dependencies.
+New `sources/etc.rs`, kind `config`:
+- Walks `/etc` up to 6 levels deep, sorted, using `symlink_metadata` so
+  symlinks (alternatives, certs, `/etc/resolv.conf` links) are never followed.
+- Skips a `NOISY` list (mtab, ld.so.cache, adjtime, resolv.conf, `passwd-`
+  style backups, .pwd.lock) and the shell source's paths
+  (`shell::SYSTEM_FILES` / `SYSTEM_DIRS` are now `pub`), so nothing shows twice.
+- Files with an mtime in the same minute become one line, 5 names max + "and N more".
+- Unreadable directories (e.g. /etc/ssl/private as a user) become a single
+  note: "no permission to look in X and N more".
+- Tests set mtimes with `File::set_modified`, so they don't depend on the
+  clock. 29 tests + 1 ignored.
+
+On the real machine over 3 days it printed two lines (gitlab-secrets.json,
+openvpn's ipp.txt). ipp.txt is runtime state, not config; if more files like
+that show up, extend `NOISY`.
+
+Not done: "drop files dpkg touched in that minute". Grouping already keeps an
+upgrade to one line; revisit if it's still too noisy in practice.
+
+Next: `~/.config` for each home (second half of roadmap 7). Reuse
+`shell::homes` (make it `pub`). Needs a stronger skip list: browser profiles,
+caches and editor state rewrite files constantly. Maybe depth 3 and skip known
+app dirs (chromium, google-chrome, mozilla, Code, discord, ...).
+Then systemd units (roadmap 8).

@@ -12,6 +12,7 @@ use crate::timeline::SourceResult;
 use crate::tz::Tz;
 
 pub mod dpkg;
+pub mod etc;
 pub mod kernel;
 pub mod shell;
 
@@ -20,6 +21,7 @@ pub fn collect_all(root: &Path, since: i64, tz: &Tz) -> Vec<(&'static str, Sourc
     vec![
         ("dpkg", dpkg::collect(root, since, tz)),
         ("kernel", kernel::collect(root, since)),
+        ("config", etc::collect(root, since)),
         ("shell", shell::collect(root, since)),
     ]
 }

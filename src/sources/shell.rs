@@ -13,7 +13,7 @@ use std::path::Path;
 use crate::sources::under;
 use crate::timeline::{Event, SourceResult};
 
-const SYSTEM_FILES: &[&str] = &[
+pub const SYSTEM_FILES: &[&str] = &[
     "/etc/profile",
     "/etc/bash.bashrc",
     "/etc/bashrc",
@@ -23,7 +23,7 @@ const SYSTEM_FILES: &[&str] = &[
     "/etc/zshrc",
 ];
 
-const SYSTEM_DIRS: &[&str] = &["/etc/profile.d"];
+pub const SYSTEM_DIRS: &[&str] = &["/etc/profile.d"];
 
 const HOME_FILES: &[&str] = &[
     ".profile",
