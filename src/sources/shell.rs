@@ -76,7 +76,7 @@ pub fn collect(root: &Path, since: i64) -> SourceResult {
 }
 
 /// Home directories as paths relative to `root`: `/root` and `/home/*`.
-fn homes(root: &Path) -> Vec<String> {
+pub fn homes(root: &Path) -> Vec<String> {
     let mut homes = vec!["/root".to_string()];
     if let Ok(entries) = std::fs::read_dir(under(root, "/home")) {
         let mut users: Vec<String> = entries

@@ -28,13 +28,15 @@ Early days. Right now it reads:
   These show up as `env` lines. A bad line in one of them is a common reason
   for a wrong `PATH` or a terminal that suddenly behaves differently.
 
-- **config files under `/etc`**, shown as `config` lines. Files edited in the
-  same minute are put on one line. Files the system rewrites on its own
-  (`/etc/mtab`, `/etc/ld.so.cache`, `/etc/resolv.conf`, ...) are left out, and
-  symlinks are not followed.
+- **config files under `/etc` and `~/.config`**, shown as `config` lines.
+  `~/.config` is checked for `/root` and every user in `/home`, two folders
+  deep. Files edited in the same minute are put on one line. Files that get
+  rewritten on their own are left out: `/etc/mtab`, `/etc/ld.so.cache`,
+  `/etc/resolv.conf`, browser and chat app profiles (Chromium, Chrome, Code,
+  Discord, Slack, ...), caches, locks and editor backups (`foo~`, `.swp`).
+  Symlinks are not followed.
 
-More sources are coming: dnf, pacman, flatpak, `~/.config`, systemd units,
-crontabs.
+More sources are coming: dnf, pacman, flatpak, systemd units, crontabs.
 
 Times are shown in your local time zone, the same one `date` uses: it comes
 from `$TZ` if that is set, otherwise from `/etc/localtime`. To see the timeline

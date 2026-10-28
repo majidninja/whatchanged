@@ -10,7 +10,7 @@ Notes to self between sessions. Read this first.
 4. [x] Local time zone: parse `/etc/localtime` (TZif) or honour `TZ`; currently UTC
 5. [ ] Rotated gzip logs (`dpkg.log.2.gz` ...) — needs a tiny inflate or a crate (`flate2`?); decide
 6. [x] Kernels: `/lib/modules/*` + ctime of the vmlinuz image
-7. [~] Config files: mtimes under `/etc` (done) and `~/.config` (skip noisy paths, depth limit)
+7. [x] Config files: mtimes under `/etc` and each `~/.config` (skip noisy paths, depth limit)
 8. [ ] systemd: unit files and `*.wants/` symlinks in `/etc/systemd` and `~/.config/systemd`
 9. [x] Shell startup files: `~/.bashrc`, `~/.profile`, `~/.zshrc`, `/etc/profile.d`
 10. [ ] Crontabs: `/etc/crontab`, `/etc/cron.d`, `/var/spool/cron` (may need root)
@@ -28,7 +28,7 @@ Notes to self between sessions. Read this first.
 - `src/sources/mod.rs` — `collect_all`, `read_logs` helper (missing = silent, others = note)
 - `src/sources/dpkg.rs` — dpkg log parser
 - `src/sources/kernel.rs` — installed kernels, running/"not booted yet" markers
-- `src/sources/etc.rs` — files under /etc (no symlinks, depth 6, `NOISY` skip list), grouped per minute, kind `config`
+- `src/sources/etc.rs` — files under /etc (depth 6, `NOISY`) and each `~/.config` (depth 2, `NOISY_APPS`, `NOISY_NAMES`); a `Walker` with a skip closure, no symlinks; grouped per minute, kind `config`
 - `src/sources/shell.rs` — shell startup files (system + `/root` + `/home/*`), mtime, kind `env`
 
 ## 2026-10-23
@@ -153,3 +153,32 @@ Next: `~/.config` for each home (second half of roadmap 7). Reuse
 caches and editor state rewrite files constantly. Maybe depth 3 and skip known
 app dirs (chromium, google-chrome, mozilla, Code, discord, ...).
 Then systemd units (roadmap 8).
+
+## 2026-10-28
+
+**`~/.config` for each home** (second half of roadmap 7, now done), no new
+dependencies. In `sources/etc.rs`:
+- The walk became a small `Walker` struct (root, since, files, denied, notes)
+  with `walk(dir, depth, skip)`, where `skip(path, name)` is a closure. That
+  keeps clippy's argument-count lint quiet and lets /etc and homes use
+  different rules. `depth` now counts down (levels of subdirs still allowed).
+- Homes come from `shell::homes` (now `pub`): `/root` and `/home/*`.
+  Depth 2 below `.config` (`app/dir/file`).
+- Skipped: `NOISY_APPS` directly under `.config` (browsers, Electron chat
+  apps, editors, `pulse`, `dconf`, `session`), `NOISY_NAMES` anywhere (cache
+  dirs, lock files, `fish_variables`, `htoprc`), names ending in `~`, `.swp`,
+  `.tmp`, and `fish/config.fish` (shell source has it).
+- /etc and home files share one per-minute grouping, so they can show on the
+  same line. Fine for now; maybe split per home later if it reads badly.
+  30 tests + 1 ignored.
+
+Couldn't look at this machine's real `~/.config` (sandboxed), so the skip
+lists are from experience, not observation. Watch for noise and extend.
+`dconf/user` is skipped although GNOME settings changes live there; it's a
+binary db rewritten on any tweak. Could show it as one "GNOME settings
+changed" line later.
+
+Next: systemd units (roadmap 8): unit files in `/etc/systemd/system` and
+`~/.config/systemd/user` (these are under the config walk today, so skip
+them there to avoid showing twice), and `*.wants/` symlinks (use the
+symlink's own mtime via `symlink_metadata`) → "docker.service enabled".
