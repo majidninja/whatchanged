@@ -11,7 +11,7 @@ Notes to self between sessions. Read this first.
 5. [ ] Rotated gzip logs (`dpkg.log.2.gz` ...) — needs a tiny inflate or a crate (`flate2`?); decide
 6. [x] Kernels: `/lib/modules/*` + ctime of the vmlinuz image
 7. [x] Config files: mtimes under `/etc` and each `~/.config` (skip noisy paths, depth limit)
-8. [ ] systemd: unit files and `*.wants/` symlinks in `/etc/systemd` and `~/.config/systemd`
+8. [x] systemd: unit files and `*.wants/` symlinks in `/etc/systemd` and `~/.config/systemd`
 9. [x] Shell startup files: `~/.bashrc`, `~/.profile`, `~/.zshrc`, `/etc/profile.d`
 10. [ ] Crontabs: `/etc/crontab`, `/etc/cron.d`, `/var/spool/cron` (may need root)
 11. [ ] Other package managers: pacman.log, dnf (history db is sqlite — maybe `dnf.rpm.log`), flatpak
@@ -182,3 +182,30 @@ Next: systemd units (roadmap 8): unit files in `/etc/systemd/system` and
 `~/.config/systemd/user` (these are under the config walk today, so skip
 them there to avoid showing twice), and `*.wants/` symlinks (use the
 symlink's own mtime via `symlink_metadata`) → "docker.service enabled".
+
+## 2026-10-29
+
+**systemd units** (roadmap 8, done), no new dependencies. New
+`sources/systemd.rs`, kind `service`:
+- Looks in `/etc/systemd/system`, `/etc/systemd/user` and each home's
+  `~/.config/systemd/user` (homes from `shell::homes`), one level of subdirs.
+- Symlinks inside `*.wants/` / `*.requires/` → "X enabled", dated by the
+  link's own mtime (`symlink_metadata`). Top-level link to `/dev/null` →
+  "X masked". Other top-level links (aliases like display-manager.service)
+  are ignored. Regular files (unit files, `foo.service.d/override.conf`) →
+  "path edited".
+- User units get a " (user)" / " (user alice)" suffix.
+- One line per minute and verb; a unit wanted by two targets is listed once.
+- The config walker now skips these dirs (`systemd::SYSTEM_DIRS`,
+  `systemd/user` under `.config`), so nothing shows twice.
+  33 tests + 1 ignored.
+
+Couldn't run the binary on the real machine this time (sandbox), only tests.
+Disables aren't shown (the link is gone). A `*.wants/` dir whose mtime is
+newer than all its links means something was removed from it; could say
+"a unit was disabled in multi-user.target.wants" later.
+
+Next: crontabs (roadmap 10): `/etc/crontab`, `/etc/cron.d/*`,
+`/var/spool/cron/crontabs/*` (Debian) and `/var/spool/cron/*` (Fedora/Arch),
+kind `cron`; the spool needs root, so add a "no permission" note. Skip
+`/etc/crontab` and `/etc/cron.d` in the config walker.

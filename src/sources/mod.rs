@@ -15,6 +15,7 @@ pub mod dpkg;
 pub mod etc;
 pub mod kernel;
 pub mod shell;
+pub mod systemd;
 
 /// Runs every source and returns their results, labelled by name.
 pub fn collect_all(root: &Path, since: i64, tz: &Tz) -> Vec<(&'static str, SourceResult)> {
@@ -23,6 +24,7 @@ pub fn collect_all(root: &Path, since: i64, tz: &Tz) -> Vec<(&'static str, Sourc
         ("kernel", kernel::collect(root, since)),
         ("config", etc::collect(root, since)),
         ("shell", shell::collect(root, since)),
+        ("service", systemd::collect(root, since)),
     ]
 }
 

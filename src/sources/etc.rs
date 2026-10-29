@@ -4,7 +4,8 @@
 //! We walk those trees (not following symlinks, with a depth limit) and use
 //! each regular file's mtime. Files rewritten by themselves all the time
 //! (`/etc/mtab`, browser profiles, caches, ...) are skipped, and so are the
-//! shell startup files, which the `shell` source already reports as `env`.
+//! shell startup files, which the `shell` source already reports as `env`,
+//! and systemd unit directories, which the `service` source reports.
 //!
 //! Files edited in the same minute become one line, because one command
 //! (an upgrade, `update-ca-certificates`, `useradd`) often rewrites several.
@@ -13,7 +14,7 @@ use std::io::ErrorKind;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
-use crate::sources::{shell, under};
+use crate::sources::{shell, systemd, under};
 use crate::timeline::{Event, SourceResult};
 
 /// How many directory levels below /etc we look. Deeper trees are rare and
@@ -95,7 +96,10 @@ pub fn collect(root: &Path, since: i64) -> SourceResult {
         let base = format!("{home}/.config/");
         let skip = |path: &str, name: &str| {
             let rest = path.strip_prefix(&base).unwrap_or(path);
-            is_noisy_home_name(name) || NOISY_APPS.contains(&rest) || rest == "fish/config.fish"
+            is_noisy_home_name(name)
+                || NOISY_APPS.contains(&rest)
+                || rest == "fish/config.fish"
+                || rest == "systemd/user"
         };
         w.walk(&format!("{home}/.config"), HOME_DEPTH, &skip);
     }
@@ -177,6 +181,7 @@ fn is_skipped_etc(path: &str) -> bool {
     NOISY.contains(&path)
         || shell::SYSTEM_FILES.contains(&path)
         || shell::SYSTEM_DIRS.contains(&path)
+        || systemd::SYSTEM_DIRS.contains(&path)
 }
 
 /// Caches, locks and editor leftovers (`foo~`, `.foo.swp`).
@@ -228,6 +233,7 @@ mod tests {
         root.file("/etc/mtab", ""); // noisy
         root.file("/etc/profile", ""); // belongs to the shell source
         root.file("/etc/profile.d/proxy.sh", ""); // same
+        root.file("/etc/systemd/system/x.service", ""); // service source
         root.file("/home/alice/.bashrc", ""); // not under /etc
 
         // 2024-05-01 09:12:00 and :30 UTC: the same minute.
@@ -245,11 +251,9 @@ mod tests {
         assert_eq!(ours[0].text, "/etc/fstab, /etc/ssh/sshd_config edited");
         assert_eq!(ours[0].kind, "config");
         // The noisy and shell files were written just now; they must not appear.
-        assert!(
-            r.events
-                .iter()
-                .all(|e| !e.text.contains("mtab") && !e.text.contains("profile"))
-        );
+        assert!(r.events.iter().all(|e| !e.text.contains("mtab")
+            && !e.text.contains("profile")
+            && !e.text.contains("systemd")));
     }
 
     fn set_mtime(root: &TestRoot, path: &str, secs: u64) {
@@ -309,6 +313,7 @@ mod tests {
         root.file("/home/alice/.config/foo/cache/x", "");
         root.file("/home/alice/.config/foo/foo.conf~", "");
         root.file("/home/alice/.config/fish/config.fish", "");
+        root.file("/home/alice/.config/systemd/user/x.service", "");
         // Too deep: below .config/a/b/c/.
         root.file("/home/alice/.config/a/b/c/deep.conf", "");
         for f in [

@@ -36,7 +36,14 @@ Early days. Right now it reads:
   Discord, Slack, ...), caches, locks and editor backups (`foo~`, `.swp`).
   Symlinks are not followed.
 
-More sources are coming: dnf, pacman, flatpak, systemd units, crontabs.
+- **systemd units**, shown as `service` lines: `docker.service enabled`,
+  `cups.service masked`, or a unit file or override (what `systemctl edit`
+  writes) edited. It looks in `/etc/systemd/system`, `/etc/systemd/user` and
+  each user's `~/.config/systemd/user`; user units are marked like
+  `backup.timer (user alice)`. Disabling a unit deletes a link and leaves
+  nothing behind to date, so disables are not shown.
+
+More sources are coming: dnf, pacman, flatpak, crontabs.
 
 Times are shown in your local time zone, the same one `date` uses: it comes
 from `$TZ` if that is set, otherwise from `/etc/localtime`. To see the timeline
