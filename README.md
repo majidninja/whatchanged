@@ -43,7 +43,13 @@ Early days. Right now it reads:
   `backup.timer (user alice)`. Disabling a unit deletes a link and leaves
   nothing behind to date, so disables are not shown.
 
-More sources are coming: dnf, pacman, flatpak, crontabs.
+- **crontabs**, shown as `cron` lines: `/etc/crontab`, `/etc/cron.d/*`, the
+  scripts in `/etc/cron.daily` and friends, and each user's own crontab (what
+  `crontab -e` writes), shown as `crontab of alice edited`. User crontabs are
+  in `/var/spool/cron`, which normally only root can read; without root
+  you'll get a note saying they were skipped. Removed crontabs are not shown.
+
+More sources are coming: dnf, pacman, flatpak.
 
 Times are shown in your local time zone, the same one `date` uses: it comes
 from `$TZ` if that is set, otherwise from `/etc/localtime`. To see the timeline

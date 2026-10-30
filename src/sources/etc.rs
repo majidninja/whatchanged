@@ -5,7 +5,8 @@
 //! each regular file's mtime. Files rewritten by themselves all the time
 //! (`/etc/mtab`, browser profiles, caches, ...) are skipped, and so are the
 //! shell startup files, which the `shell` source already reports as `env`,
-//! and systemd unit directories, which the `service` source reports.
+//! and systemd unit directories and crontabs, which the `service` and
+//! `cron` sources report.
 //!
 //! Files edited in the same minute become one line, because one command
 //! (an upgrade, `update-ca-certificates`, `useradd`) often rewrites several.
@@ -14,7 +15,7 @@ use std::io::ErrorKind;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
-use crate::sources::{shell, systemd, under};
+use crate::sources::{cron, shell, systemd, under};
 use crate::timeline::{Event, SourceResult};
 
 /// How many directory levels below /etc we look. Deeper trees are rare and
@@ -182,6 +183,8 @@ fn is_skipped_etc(path: &str) -> bool {
         || shell::SYSTEM_FILES.contains(&path)
         || shell::SYSTEM_DIRS.contains(&path)
         || systemd::SYSTEM_DIRS.contains(&path)
+        || cron::SYSTEM_FILES.contains(&path)
+        || cron::SYSTEM_DIRS.contains(&path)
 }
 
 /// Caches, locks and editor leftovers (`foo~`, `.foo.swp`).
@@ -234,6 +237,8 @@ mod tests {
         root.file("/etc/profile", ""); // belongs to the shell source
         root.file("/etc/profile.d/proxy.sh", ""); // same
         root.file("/etc/systemd/system/x.service", ""); // service source
+        root.file("/etc/crontab", ""); // cron source
+        root.file("/etc/cron.d/certbot", ""); // same
         root.file("/home/alice/.bashrc", ""); // not under /etc
 
         // 2024-05-01 09:12:00 and :30 UTC: the same minute.
@@ -253,7 +258,8 @@ mod tests {
         // The noisy and shell files were written just now; they must not appear.
         assert!(r.events.iter().all(|e| !e.text.contains("mtab")
             && !e.text.contains("profile")
-            && !e.text.contains("systemd")));
+            && !e.text.contains("systemd")
+            && !e.text.contains("cron")));
     }
 
     fn set_mtime(root: &TestRoot, path: &str, secs: u64) {

@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use crate::timeline::SourceResult;
 use crate::tz::Tz;
 
+pub mod cron;
 pub mod dpkg;
 pub mod etc;
 pub mod kernel;
@@ -25,6 +26,7 @@ pub fn collect_all(root: &Path, since: i64, tz: &Tz) -> Vec<(&'static str, Sourc
         ("config", etc::collect(root, since)),
         ("shell", shell::collect(root, since)),
         ("service", systemd::collect(root, since)),
+        ("cron", cron::collect(root, since)),
     ]
 }
 

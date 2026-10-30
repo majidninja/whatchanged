@@ -13,7 +13,7 @@ Notes to self between sessions. Read this first.
 7. [x] Config files: mtimes under `/etc` and each `~/.config` (skip noisy paths, depth limit)
 8. [x] systemd: unit files and `*.wants/` symlinks in `/etc/systemd` and `~/.config/systemd`
 9. [x] Shell startup files: `~/.bashrc`, `~/.profile`, `~/.zshrc`, `/etc/profile.d`
-10. [ ] Crontabs: `/etc/crontab`, `/etc/cron.d`, `/var/spool/cron` (may need root)
+10. [x] Crontabs: `/etc/crontab`, `/etc/cron.d`, `/var/spool/cron` (may need root)
 11. [ ] Other package managers: pacman.log, dnf (history db is sqlite — maybe `dnf.rpm.log`), flatpak
 12. [ ] CLI: `--only pkg,config`, `--until`; man page
 13. [x] Sources take a root path (`--root DIR`); `TestRoot` scratch dir for tests
@@ -209,3 +209,31 @@ Next: crontabs (roadmap 10): `/etc/crontab`, `/etc/cron.d/*`,
 `/var/spool/cron/crontabs/*` (Debian) and `/var/spool/cron/*` (Fedora/Arch),
 kind `cron`; the spool needs root, so add a "no permission" note. Skip
 `/etc/crontab` and `/etc/cron.d` in the config walker.
+
+## 2026-10-30
+
+**crontabs** (roadmap 10, done), no new dependencies. New `sources/cron.rs`,
+kind `cron`:
+- System: `/etc/crontab`, `/etc/anacrontab`, and files in `/etc/cron.d` and
+  `/etc/cron.{hourly,daily,weekly,monthly}` (Debian's `.placeholder` skipped).
+  Shown by path.
+- Users: files in `/var/spool/cron/crontabs` (Debian/Ubuntu) and
+  `/var/spool/cron` (Fedora/Arch) → "crontab of alice". Only regular files
+  count, so the Debian `crontabs` folder inside `/var/spool/cron` isn't taken
+  for a user. No permission → note "user crontabs need root".
+- One line per minute: "/etc/crontab, crontab of alice edited".
+- The config walker skips `cron::SYSTEM_FILES` / `cron::SYSTEM_DIRS`.
+  36 tests + 1 ignored.
+
+Ran it on this machine with `--since 60d`: shows "20:05 cron crontab of
+root edited" on 2026-10-22, and no cron noise in the config lines.
+
+Removals (`crontab -r`, deleted cron.d file) aren't shown; same idea as
+disabled units: a folder mtime newer than all its files hints at a removal.
+Could add a generic "something was removed from DIR" line for cron.d,
+*.wants and profile.d later.
+
+Next: pacman log (roadmap 11: `/var/log/pacman.log`, lines like
+`[2024-05-01T09:12:00+0200] [ALPM] upgraded mesa (24.1-1 -> 24.2-1)`).
+The timestamps carry their own offset, so it should be simpler than dpkg's
+local-time parsing. Reuse the dpkg grouping if it fits.
