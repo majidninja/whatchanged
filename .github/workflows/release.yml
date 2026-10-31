@@ -17,6 +17,7 @@ env:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - target: x86_64-unknown-linux-musl
@@ -39,7 +40,7 @@ jobs:
         run: |
           bin=target/${{ matrix.target }}/release/whatchanged
           file "$bin"
-          file "$bin" | grep -q 'statically linked'
+          file "$bin" | grep -Eq 'static(-pie)? linked|statically linked'
           "$bin" --version
           "$bin" --since 1d
       - name: Package
