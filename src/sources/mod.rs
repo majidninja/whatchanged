@@ -15,6 +15,7 @@ pub mod cron;
 pub mod dpkg;
 pub mod etc;
 pub mod kernel;
+pub mod pacman;
 pub mod shell;
 pub mod systemd;
 
@@ -22,6 +23,7 @@ pub mod systemd;
 pub fn collect_all(root: &Path, since: i64, tz: &Tz) -> Vec<(&'static str, SourceResult)> {
     vec![
         ("dpkg", dpkg::collect(root, since, tz)),
+        ("pacman", pacman::collect(root, since, tz)),
         ("kernel", kernel::collect(root, since)),
         ("config", etc::collect(root, since)),
         ("shell", shell::collect(root, since)),

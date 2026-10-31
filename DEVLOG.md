@@ -14,7 +14,7 @@ Notes to self between sessions. Read this first.
 8. [x] systemd: unit files and `*.wants/` symlinks in `/etc/systemd` and `~/.config/systemd`
 9. [x] Shell startup files: `~/.bashrc`, `~/.profile`, `~/.zshrc`, `/etc/profile.d`
 10. [x] Crontabs: `/etc/crontab`, `/etc/cron.d`, `/var/spool/cron` (may need root)
-11. [ ] Other package managers: pacman.log, dnf (history db is sqlite — maybe `dnf.rpm.log`), flatpak
+11. [ ] Other package managers: pacman.log (done), dnf (history db is sqlite — maybe `dnf.rpm.log`), flatpak
 12. [ ] CLI: `--only pkg,config`, `--until`; man page
 13. [x] Sources take a root path (`--root DIR`); `TestRoot` scratch dir for tests
 14. [x] With `--root`, read the time zone from `<root>/etc/localtime` too
@@ -237,3 +237,27 @@ Next: pacman log (roadmap 11: `/var/log/pacman.log`, lines like
 `[2024-05-01T09:12:00+0200] [ALPM] upgraded mesa (24.1-1 -> 24.2-1)`).
 The timestamps carry their own offset, so it should be simpler than dpkg's
 local-time parsing. Reuse the dpkg grouping if it fits.
+
+## 2026-10-31
+
+**pacman log** (part of roadmap 11), no new dependencies. New
+`sources/pacman.rs`, kind `pkg`:
+- Reads `/var/log/pacman.log`; keeps `[ALPM] installed/upgraded/downgraded/
+  reinstalled/removed NAME (VERSION)` lines, skips `[PACMAN]` and
+  `[ALPM-SCRIPTLET]` lines.
+- Timestamps with an offset (`2024-05-01T09:12:00+0200`) use that offset;
+  the old offset-less format (`[2019-01-01 12:00]`, and the very old one
+  without the `[ALPM]` tag) is read as local time.
+- The per-minute grouping moved out of `dpkg::parse` into `dpkg::group`
+  (with a public `dpkg::Action`), and pacman reuses it.
+- A missing pacman log gives no note (most machines don't use pacman).
+  dpkg still notes a missing log, so Arch users will see "dpkg: no log
+  found". Better: one note only if *no* package manager log was found.
+  40 tests + 1 ignored.
+
+Couldn't run the binary against a fake root (sandbox blocked writing one);
+the `collect` test covers the same path.
+
+Next: fix the package-log notes as above (maybe move `group`/`Action` to a
+small `sources/pkg.rs` at the same time), then dnf (`/var/log/dnf.rpm.log`:
+`2024-05-01T09:12:00+0200 SUBDEBUG Upgrade: mesa-24.2-1.fc40.x86_64`).

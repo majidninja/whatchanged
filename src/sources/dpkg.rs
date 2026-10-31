@@ -20,11 +20,12 @@ pub fn collect(root: &Path, since: i64, tz: &Tz) -> SourceResult {
     SourceResult { events, notes }
 }
 
-/// One parsed action, before grouping.
-struct Action {
-    time: i64,
-    verb: &'static str,
-    detail: String,
+/// One parsed package action, before grouping. Shared with the other
+/// package manager sources.
+pub struct Action {
+    pub time: i64,
+    pub verb: &'static str,
+    pub detail: String,
 }
 
 fn parse_line(line: &str, tz: &Tz) -> Option<Action> {
@@ -57,9 +58,15 @@ fn parse_line(line: &str, tz: &Tz) -> Option<Action> {
 /// kind within the same minute are merged into one event, because a single
 /// `apt upgrade` usually touches many packages at once.
 pub fn parse(text: &str, since: i64, tz: &Tz) -> Vec<Event> {
+    group(text.lines().filter_map(|l| parse_line(l, tz)), since)
+}
+
+/// Turns package actions (in log order) into `pkg` events, merging actions
+/// of the same kind within the same minute and dropping those before `since`.
+pub fn group(actions: impl Iterator<Item = Action>, since: i64) -> Vec<Event> {
     // (time of first action, verb, details) per group.
     let mut groups: Vec<(i64, &'static str, Vec<String>)> = Vec::new();
-    for a in text.lines().filter_map(|l| parse_line(l, tz)) {
+    for a in actions {
         if a.time < since {
             continue;
         }

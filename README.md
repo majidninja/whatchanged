@@ -19,6 +19,9 @@ $ whatchanged --since yesterday
 Early days. Right now it reads:
 
 - the **dpkg log** (Debian, Ubuntu, Mint, ...)
+- the **pacman log** (Arch, Manjaro, EndeavourOS, ...): installs, upgrades,
+  downgrades and removals from `/var/log/pacman.log`. If you don't use
+  pacman, it stays quiet.
 - **installed kernels** (any distro). It also tells you which one is running,
   and marks kernels installed since the last boot as "not booted yet", which
   is a common answer to "why is it different after the reboot?"
@@ -49,7 +52,7 @@ Early days. Right now it reads:
   in `/var/spool/cron`, which normally only root can read; without root
   you'll get a note saying they were skipped. Removed crontabs are not shown.
 
-More sources are coming: dnf, pacman, flatpak.
+More sources are coming: dnf and flatpak.
 
 Times are shown in your local time zone, the same one `date` uses: it comes
 from `$TZ` if that is set, otherwise from `/etc/localtime`. To see the timeline
