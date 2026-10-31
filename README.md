@@ -60,7 +60,19 @@ in another zone, set it for one run, e.g. `TZ=UTC whatchanged --since 2h`.
 
 ## Install
 
-You need a Rust toolchain ([rustup.rs](https://rustup.rs)).
+Prebuilt static binaries for x86_64 and aarch64 Linux are on the
+[releases page](https://github.com/majidninja/whatchanged/releases). They run
+on any distro:
+
+```
+arch=$(uname -m)   # x86_64 or aarch64
+tag=$(curl -s https://api.github.com/repos/majidninja/whatchanged/releases/latest | sed -n 's/.*"tag_name": "\(.*\)".*/\1/p')
+curl -LO "https://github.com/majidninja/whatchanged/releases/download/$tag/whatchanged-$tag-$arch-unknown-linux-musl.tar.gz"
+tar -xzf whatchanged-*.tar.gz
+sudo install whatchanged-*/whatchanged /usr/local/bin/
+```
+
+Or build it from source with a Rust toolchain ([rustup.rs](https://rustup.rs)):
 
 ```
 git clone https://github.com/majidninja/whatchanged

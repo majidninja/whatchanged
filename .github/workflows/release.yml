@@ -1,0 +1,75 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build and release (e.g. v0.1.0)'
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-24.04-arm
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - name: Check the tag matches Cargo.toml
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          [ "v$version" = "$TAG" ] || { echo "::error::tag $TAG but Cargo.toml says $version"; exit 1; }
+      - run: rustup target add ${{ matrix.target }}
+      - run: cargo test --locked
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Smoke test (static binary)
+        run: |
+          bin=target/${{ matrix.target }}/release/whatchanged
+          file "$bin"
+          file "$bin" | grep -q 'statically linked'
+          "$bin" --version
+          "$bin" --since 1d
+      - name: Package
+        run: |
+          name="whatchanged-$TAG-${{ matrix.target }}"
+          mkdir "$name"
+          cp target/${{ matrix.target }}/release/whatchanged README.md LICENSE "$name/"
+          tar -czf "$name.tar.gz" "$name"
+          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: whatchanged-*.tar.gz*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Create or update the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -l
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" whatchanged-* --clobber
+          else
+            gh release create "$TAG" whatchanged-* --verify-tag --title "$TAG" \
+              --notes "Static Linux binaries (x86_64 and aarch64, musl). Each .tar.gz has a matching .sha256 file."
+          fi

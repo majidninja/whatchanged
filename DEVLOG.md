@@ -261,3 +261,17 @@ the `collect` test covers the same path.
 Next: fix the package-log notes as above (maybe move `group`/`Action` to a
 small `sources/pkg.rs` at the same time), then dnf (`/var/log/dnf.rpm.log`:
 `2024-05-01T09:12:00+0200 SUBDEBUG Upgrade: mesa-24.2-1.fc40.x86_64`).
+
+## 2026-10-31 (release binaries, done by hand outside the daily session)
+
+Added `.github/workflows/release.yml`: pushing a `v*` tag runs the tests and
+builds static musl binaries for x86_64 (ubuntu-latest) and aarch64
+(ubuntu-24.04-arm), smoke-tests them and attaches
+`whatchanged-vX.Y.Z-<target>.tar.gz` plus `.sha256` files to the GitHub
+release. The tag must match `version` in Cargo.toml. First release: v0.1.0.
+README got a "prebuilt binaries" install section.
+
+The GitHub Action majidninja/whatchanged-action downloads these release
+assets, so keep the asset names as they are. To release: bump `version` in
+Cargo.toml, commit, then tag `vX.Y.Z` (tagging is done by hand, not in the
+daily session).
