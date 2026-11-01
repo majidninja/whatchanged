@@ -16,14 +16,14 @@ pub mod dpkg;
 pub mod etc;
 pub mod kernel;
 pub mod pacman;
+pub mod pkg;
 pub mod shell;
 pub mod systemd;
 
 /// Runs every source and returns their results, labelled by name.
 pub fn collect_all(root: &Path, since: i64, tz: &Tz) -> Vec<(&'static str, SourceResult)> {
     vec![
-        ("dpkg", dpkg::collect(root, since, tz)),
-        ("pacman", pacman::collect(root, since, tz)),
+        ("pkg", pkg::collect(root, since, tz)),
         ("kernel", kernel::collect(root, since)),
         ("config", etc::collect(root, since)),
         ("shell", shell::collect(root, since)),
@@ -39,30 +39,22 @@ pub fn under(root: &Path, path: &str) -> PathBuf {
 
 /// Reads the given files below `root`. Missing files are skipped silently
 /// (the package manager may not be installed); other errors become notes.
-/// Returns a note if none of the files exist at all.
+/// Whether *no* package log exists at all is reported by `pkg::collect`.
 pub fn read_logs(source: &str, root: &Path, paths: &[&str]) -> (Vec<String>, Vec<String>) {
     let mut texts = Vec::new();
     let mut notes = Vec::new();
-    let mut missing = 0;
     for path in paths {
         let full = under(root, path);
         match std::fs::read(&full) {
             // Logs may contain invalid UTF-8 (odd package descriptions); be lenient.
             Ok(bytes) => texts.push(String::from_utf8_lossy(&bytes).into_owned()),
-            Err(e) if e.kind() == ErrorKind::NotFound => missing += 1,
+            Err(e) if e.kind() == ErrorKind::NotFound => {}
             Err(e) if e.kind() == ErrorKind::PermissionDenied => notes.push(format!(
                 "{source}: no permission to read {}",
                 full.display()
             )),
             Err(e) => notes.push(format!("{source}: can't read {}: {e}", full.display())),
         }
-    }
-    if missing == paths.len() {
-        let all: Vec<String> = paths
-            .iter()
-            .map(|p| under(root, p).display().to_string())
-            .collect();
-        notes.push(format!("{source}: no log found ({})", all.join(", ")));
     }
     (texts, notes)
 }
@@ -110,11 +102,11 @@ mod tests {
     }
 
     #[test]
-    fn read_logs_reports_missing_and_reads_present() {
+    fn read_logs_skips_missing_and_reads_present() {
         let root = TestRoot::new("readlogs");
         let (texts, notes) = read_logs("t", &root.0, &["/a.log"]);
         assert!(texts.is_empty());
-        assert_eq!(notes.len(), 1);
+        assert!(notes.is_empty());
         root.file("/a.log", "hello");
         let (texts, notes) = read_logs("t", &root.0, &["/a.log", "/b.log"]);
         assert_eq!(texts, ["hello"]);

@@ -20,8 +20,10 @@ Early days. Right now it reads:
 
 - the **dpkg log** (Debian, Ubuntu, Mint, ...)
 - the **pacman log** (Arch, Manjaro, EndeavourOS, ...): installs, upgrades,
-  downgrades and removals from `/var/log/pacman.log`. If you don't use
-  pacman, it stays quiet.
+  downgrades and removals from `/var/log/pacman.log`.
+
+  It only mentions a missing package log if it found none at all, so
+  an Arch machine won't complain about dpkg, and vice versa.
 - **installed kernels** (any distro). It also tells you which one is running,
   and marks kernels installed since the last boot as "not booted yet", which
   is a common answer to "why is it different after the reboot?"

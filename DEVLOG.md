@@ -275,3 +275,24 @@ The GitHub Action majidninja/whatchanged-action downloads these release
 assets, so keep the asset names as they are. To release: bump `version` in
 Cargo.toml, commit, then tag `vX.Y.Z` (tagging is done by hand, not in the
 daily session).
+
+## 2026-11-01
+
+**Package-log notes**, no new dependencies. New `sources/pkg.rs`:
+- `Action` and `group` (the per-minute grouping) moved there from dpkg.
+- `pkg::collect` runs dpkg and pacman together and replaces both in
+  `collect_all`. It adds one note, "pkg: no package manager log found
+  (looked for .../dpkg.log, .../pacman.log)", only if none of the logs
+  exist and no other read error was reported. Arch users no longer see
+  "dpkg: no log found".
+- `read_logs` no longer emits a "no log found" note itself; it only
+  reports permission/read errors.
+  43 tests + 1 ignored.
+
+Checked with `--root src` (empty root): exactly one pkg note.
+
+Next: dnf (`/var/log/dnf.rpm.log`: `2024-05-01T09:12:00+0200 SUBDEBUG
+Upgrade: mesa-24.2-1.fc40.x86_64`). Add its LOGS to `pkg::collect`.
+Note dnf lines carry name-version-release.arch in one token; split off the
+arch, then name from version at the last two `-`. Pacman's `parse_time`
+offset handling could move to `time.rs` and be reused.

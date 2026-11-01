@@ -1,0 +1,141 @@
+//! Package changes from all package manager logs, plus the grouping they
+//! share. Each package manager has its own module (dpkg, pacman); this one
+//! runs them together so that a machine without, say, pacman doesn't get a
+//! "no pacman log" note. Only if no package log exists at all do we say so.
+
+use std::path::Path;
+
+use crate::sources::{dpkg, pacman, under};
+use crate::timeline::{Event, SourceResult};
+use crate::tz::Tz;
+
+/// Runs every package log source and merges their results.
+pub fn collect(root: &Path, since: i64, tz: &Tz) -> SourceResult {
+    let mut all = SourceResult::default();
+    for r in [
+        dpkg::collect(root, since, tz),
+        pacman::collect(root, since, tz),
+    ] {
+        all.events.extend(r.events);
+        all.notes.extend(r.notes);
+    }
+    let logs: Vec<&str> = dpkg::LOGS.iter().chain(pacman::LOGS).copied().collect();
+    // Unreadable logs already produced a note of their own.
+    if all.notes.is_empty() && !logs.iter().any(|p| under(root, p).exists()) {
+        all.notes.push(format!(
+            "pkg: no package manager log found (looked for {})",
+            logs.iter()
+                .filter(|p| !p.ends_with(".1"))
+                .map(|p| under(root, p).display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    all
+}
+
+/// One parsed package action, before grouping.
+pub struct Action {
+    pub time: i64,
+    pub verb: &'static str,
+    pub detail: String,
+}
+
+/// Packages listed per line before collapsing the rest into "and N more".
+const MAX_SHOWN: usize = 5;
+
+/// Turns package actions (in log order) into `pkg` events, merging actions
+/// of the same kind within the same minute and dropping those before `since`.
+/// A single `apt upgrade` or `pacman -Syu` usually touches many packages.
+pub fn group(actions: impl Iterator<Item = Action>, since: i64) -> Vec<Event> {
+    // (time of first action, verb, details) per group.
+    let mut groups: Vec<(i64, &'static str, Vec<String>)> = Vec::new();
+    for a in actions {
+        if a.time < since {
+            continue;
+        }
+        match groups.last_mut() {
+            Some((t, verb, details)) if *t / 60 == a.time / 60 && *verb == a.verb => {
+                details.push(a.detail)
+            }
+            _ => groups.push((a.time, a.verb, vec![a.detail])),
+        }
+    }
+    groups
+        .into_iter()
+        .map(|(time, verb, details)| {
+            let mut text = format!(
+                "{verb:<9} {}",
+                details[..details.len().min(MAX_SHOWN)].join(", ")
+            );
+            if details.len() > MAX_SHOWN {
+                text.push_str(&format!(" and {} more", details.len() - MAX_SHOWN));
+            }
+            Event {
+                time,
+                kind: "pkg",
+                text,
+            }
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sources::TestRoot;
+
+    #[test]
+    fn one_note_when_no_package_log_exists() {
+        let root = TestRoot::new("pkg-none");
+        let r = collect(&root.0, 0, &Tz::utc());
+        assert!(r.events.is_empty());
+        assert_eq!(r.notes.len(), 1);
+        assert!(r.notes[0].starts_with("pkg: no package manager log found"));
+        assert!(r.notes[0].contains("pacman.log"));
+        assert!(!r.notes[0].contains("dpkg.log.1"));
+    }
+
+    #[test]
+    fn no_note_when_only_one_manager_is_used() {
+        let root = TestRoot::new("pkg-pacman");
+        root.file(
+            "/var/log/pacman.log",
+            "[2024-05-01T14:00:00+0200] [ALPM] installed htop (3.3.0-1)\n",
+        );
+        let r = collect(&root.0, 0, &Tz::utc());
+        assert_eq!(r.events.len(), 1);
+        assert!(r.notes.is_empty());
+
+        let root = TestRoot::new("pkg-dpkg");
+        root.file(
+            "/var/log/dpkg.log",
+            "2024-05-01 14:00:00 install htop:amd64 <none> 3.3.0-4\n",
+        );
+        let r = collect(&root.0, 0, &Tz::utc());
+        assert_eq!(r.events.len(), 1);
+        assert!(r.notes.is_empty());
+    }
+
+    #[test]
+    fn groups_per_minute_and_kind() {
+        let a = |time, verb, d: &str| Action {
+            time,
+            verb,
+            detail: d.to_string(),
+        };
+        let events = group(
+            [
+                a(10, "installed", "old"),
+                a(120, "installed", "a"),
+                a(150, "installed", "b"),
+                a(170, "removed", "c"),
+                a(185, "removed", "d"),
+            ]
+            .into_iter(),
+            100,
+        );
+        let texts: Vec<&str> = events.iter().map(|e| e.text.as_str()).collect();
+        assert_eq!(texts, ["installed a, b", "removed   c", "removed   d"]);
+    }
+}

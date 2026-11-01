@@ -7,25 +7,18 @@
 
 use std::path::Path;
 
+use crate::sources::pkg::{Action, group};
 use crate::sources::read_logs;
 use crate::time::DateTime;
 use crate::timeline::{Event, SourceResult};
 use crate::tz::Tz;
 
-const LOGS: &[&str] = &["/var/log/dpkg.log.1", "/var/log/dpkg.log"];
+pub const LOGS: &[&str] = &["/var/log/dpkg.log.1", "/var/log/dpkg.log"];
 
 pub fn collect(root: &Path, since: i64, tz: &Tz) -> SourceResult {
     let (texts, notes) = read_logs("dpkg", root, LOGS);
     let events = texts.iter().flat_map(|t| parse(t, since, tz)).collect();
     SourceResult { events, notes }
-}
-
-/// One parsed package action, before grouping. Shared with the other
-/// package manager sources.
-pub struct Action {
-    pub time: i64,
-    pub verb: &'static str,
-    pub detail: String,
 }
 
 fn parse_line(line: &str, tz: &Tz) -> Option<Action> {
@@ -60,44 +53,6 @@ fn parse_line(line: &str, tz: &Tz) -> Option<Action> {
 pub fn parse(text: &str, since: i64, tz: &Tz) -> Vec<Event> {
     group(text.lines().filter_map(|l| parse_line(l, tz)), since)
 }
-
-/// Turns package actions (in log order) into `pkg` events, merging actions
-/// of the same kind within the same minute and dropping those before `since`.
-pub fn group(actions: impl Iterator<Item = Action>, since: i64) -> Vec<Event> {
-    // (time of first action, verb, details) per group.
-    let mut groups: Vec<(i64, &'static str, Vec<String>)> = Vec::new();
-    for a in actions {
-        if a.time < since {
-            continue;
-        }
-        match groups.last_mut() {
-            Some((t, verb, details)) if *t / 60 == a.time / 60 && *verb == a.verb => {
-                details.push(a.detail)
-            }
-            _ => groups.push((a.time, a.verb, vec![a.detail])),
-        }
-    }
-    groups
-        .into_iter()
-        .map(|(time, verb, details)| {
-            let mut text = format!(
-                "{verb:<9} {}",
-                details[..details.len().min(MAX_SHOWN)].join(", ")
-            );
-            if details.len() > MAX_SHOWN {
-                text.push_str(&format!(" and {} more", details.len() - MAX_SHOWN));
-            }
-            Event {
-                time,
-                kind: "pkg",
-                text,
-            }
-        })
-        .collect()
-}
-
-/// Packages listed per line before collapsing the rest into "and N more".
-const MAX_SHOWN: usize = 5;
 
 #[cfg(test)]
 mod tests {

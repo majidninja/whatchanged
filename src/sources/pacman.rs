@@ -8,20 +8,16 @@
 
 use std::path::Path;
 
-use crate::sources::dpkg::{Action, group};
+use crate::sources::pkg::{Action, group};
 use crate::sources::read_logs;
 use crate::time::{DateTime, HOUR, MINUTE};
 use crate::timeline::{Event, SourceResult};
 use crate::tz::Tz;
 
-const LOGS: &[&str] = &["/var/log/pacman.log"];
+pub const LOGS: &[&str] = &["/var/log/pacman.log"];
 
 pub fn collect(root: &Path, since: i64, tz: &Tz) -> SourceResult {
-    let (texts, mut notes) = read_logs("pacman", root, LOGS);
-    // Most machines don't use pacman; a missing log isn't worth a note.
-    if texts.is_empty() {
-        notes.retain(|n| !n.contains("no log found"));
-    }
+    let (texts, notes) = read_logs("pacman", root, LOGS);
     let events = texts.iter().flat_map(|t| parse(t, since, tz)).collect();
     SourceResult { events, notes }
 }
