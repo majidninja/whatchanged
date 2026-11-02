@@ -14,7 +14,7 @@ Notes to self between sessions. Read this first.
 8. [x] systemd: unit files and `*.wants/` symlinks in `/etc/systemd` and `~/.config/systemd`
 9. [x] Shell startup files: `~/.bashrc`, `~/.profile`, `~/.zshrc`, `/etc/profile.d`
 10. [x] Crontabs: `/etc/crontab`, `/etc/cron.d`, `/var/spool/cron` (may need root)
-11. [ ] Other package managers: pacman.log (done), dnf (history db is sqlite — maybe `dnf.rpm.log`), flatpak
+11. [ ] Other package managers: pacman.log (done), dnf via `dnf.rpm.log` (done; dnf5 todo), flatpak
 12. [ ] CLI: `--only pkg,config`, `--until`; man page
 13. [x] Sources take a root path (`--root DIR`); `TestRoot` scratch dir for tests
 14. [x] With `--root`, read the time zone from `<root>/etc/localtime` too
@@ -296,3 +296,31 @@ Upgrade: mesa-24.2-1.fc40.x86_64`). Add its LOGS to `pkg::collect`.
 Note dnf lines carry name-version-release.arch in one token; split off the
 arch, then name from version at the last two `-`. Pacman's `parse_time`
 offset handling could move to `time.rs` and be reused.
+
+## 2026-11-02
+
+**dnf log** (roadmap 11), no new dependencies. New `sources/dnf.rs`, kind
+`pkg`, wired into `pkg::collect` (so it shares the single "no package
+manager log found" note):
+- Reads `/var/log/dnf.rpm.log.1` then `/var/log/dnf.rpm.log`; keeps
+  `SUBDEBUG <What>: name-version-release.arch` lines.
+- `split_nevra` drops the arch and splits name from version-release at the
+  last two `-`, so `xorg-x11-server-Xorg-21.1.13-1.fc40.x86_64` works.
+- `Upgrade:` (new) is paired with the following `Upgraded:` (old, same
+  name, within an hour) to give "name old -> new"; same for
+  Downgrade/Downgraded. Without the old line it shows just the new version.
+- Installed/Install, Reinstalled/Reinstall, Erase/Erased/Removed/Obsoleted
+  are mapped; back-to-back duplicates (Install then Installed) are dropped.
+- Pacman's offset-aware timestamp parser moved to `Tz::parse_stamp` (in
+  `tz.rs`, since it falls back to local time) and is shared by both.
+  47 tests + 1 ignored.
+
+Not checked against a real Fedora log (none on this machine); the sample
+lines follow the dnf4 format as I remember it. Worth checking on a Fedora
+box.
+
+Next: dnf5 (Fedora 41+). Find out what it writes on disk; `/var/log/dnf5.log`
+may have transaction lines. If the history is only in
+`/usr/lib/sysimage/libdnf5/transaction_history.sqlite`, add a note like
+"dnf5 history is in a database we can't read" when that file exists and no
+dnf.rpm.log does. Then flatpak.

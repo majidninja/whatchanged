@@ -10,7 +10,6 @@ use std::path::Path;
 
 use crate::sources::pkg::{Action, group};
 use crate::sources::read_logs;
-use crate::time::{DateTime, HOUR, MINUTE};
 use crate::timeline::{Event, SourceResult};
 use crate::tz::Tz;
 
@@ -20,26 +19,6 @@ pub fn collect(root: &Path, since: i64, tz: &Tz) -> SourceResult {
     let (texts, notes) = read_logs("pacman", root, LOGS);
     let events = texts.iter().flat_map(|t| parse(t, since, tz)).collect();
     SourceResult { events, notes }
-}
-
-/// Parses a pacman timestamp. A trailing `+HHMM`/`-HHMM` offset is used if
-/// present, otherwise the time is taken as local.
-fn parse_time(s: &str, tz: &Tz) -> Option<i64> {
-    let n = s.len();
-    if n > 5 && s.is_char_boundary(n - 5) {
-        let (clock, off) = s.split_at(n - 5);
-        let sign = match off.as_bytes()[0] {
-            b'+' => 1,
-            b'-' => -1,
-            _ => 0,
-        };
-        if sign != 0 && off[1..].bytes().all(|b| b.is_ascii_digit()) {
-            let h: i64 = off[1..3].parse().ok()?;
-            let m: i64 = off[3..].parse().ok()?;
-            return Some(DateTime::parse(clock)?.to_epoch(sign * (h * HOUR + m * MINUTE)));
-        }
-    }
-    Some(tz.to_epoch(DateTime::parse(s)?))
 }
 
 fn parse_line(line: &str, tz: &Tz) -> Option<Action> {
@@ -66,7 +45,7 @@ fn parse_line(line: &str, tz: &Tz) -> Option<Action> {
     if name.contains(' ') {
         return None;
     }
-    let time = parse_time(stamp, tz)?;
+    let time = tz.parse_stamp(stamp)?;
     Some(Action {
         time,
         verb,
@@ -83,6 +62,7 @@ pub fn parse(text: &str, since: i64, tz: &Tz) -> Vec<Event> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::time::{DateTime, HOUR};
 
     const SAMPLE: &str = "\
 [2024-05-01T09:12:00+0200] [PACMAN] Running 'pacman -Syu'
@@ -132,7 +112,7 @@ not a log line
 
     #[test]
     fn negative_offset_and_since() {
-        let t = parse_time("2024-05-01T09:00:00-0430", &Tz::utc()).unwrap();
+        let t = Tz::utc().parse_stamp("2024-05-01T09:00:00-0430").unwrap();
         assert_eq!(t, DateTime::parse("2024-05-01 13:30").unwrap().to_epoch(0));
         // 2024-05-01 12:00 UTC: keeps only the afternoon actions.
         assert_eq!(parse(SAMPLE, 1714564800, &Tz::utc()).len(), 3);

@@ -12,6 +12,7 @@ use crate::timeline::SourceResult;
 use crate::tz::Tz;
 
 pub mod cron;
+pub mod dnf;
 pub mod dpkg;
 pub mod etc;
 pub mod kernel;

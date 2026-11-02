@@ -21,6 +21,10 @@ Early days. Right now it reads:
 - the **dpkg log** (Debian, Ubuntu, Mint, ...)
 - the **pacman log** (Arch, Manjaro, EndeavourOS, ...): installs, upgrades,
   downgrades and removals from `/var/log/pacman.log`.
+- the **dnf log** (Fedora, RHEL, CentOS Stream, ...): the same, from
+  `/var/log/dnf.rpm.log`. Versions are shown as `version-release`, e.g.
+  `kernel-core 6.12.4-200.fc40 -> 6.12.5-200.fc40`. Fedora 41 and newer
+  use dnf5, which may not write this log; that isn't handled yet.
 
   It only mentions a missing package log if it found none at all, so
   an Arch machine won't complain about dpkg, and vice versa.
@@ -54,7 +58,7 @@ Early days. Right now it reads:
   in `/var/spool/cron`, which normally only root can read; without root
   you'll get a note saying they were skipped. Removed crontabs are not shown.
 
-More sources are coming: dnf and flatpak.
+More sources are coming: flatpak next.
 
 Times are shown in your local time zone, the same one `date` uses: it comes
 from `$TZ` if that is set, otherwise from `/etc/localtime`. To see the timeline

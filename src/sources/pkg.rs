@@ -1,11 +1,11 @@
 //! Package changes from all package manager logs, plus the grouping they
-//! share. Each package manager has its own module (dpkg, pacman); this one
+//! share. Each package manager has its own module (dpkg, pacman, dnf); this one
 //! runs them together so that a machine without, say, pacman doesn't get a
 //! "no pacman log" note. Only if no package log exists at all do we say so.
 
 use std::path::Path;
 
-use crate::sources::{dpkg, pacman, under};
+use crate::sources::{dnf, dpkg, pacman, under};
 use crate::timeline::{Event, SourceResult};
 use crate::tz::Tz;
 
@@ -15,11 +15,12 @@ pub fn collect(root: &Path, since: i64, tz: &Tz) -> SourceResult {
     for r in [
         dpkg::collect(root, since, tz),
         pacman::collect(root, since, tz),
+        dnf::collect(root, since, tz),
     ] {
         all.events.extend(r.events);
         all.notes.extend(r.notes);
     }
-    let logs: Vec<&str> = dpkg::LOGS.iter().chain(pacman::LOGS).copied().collect();
+    let logs: Vec<&str> = [dpkg::LOGS, pacman::LOGS, dnf::LOGS].concat();
     // Unreadable logs already produced a note of their own.
     if all.notes.is_empty() && !logs.iter().any(|p| under(root, p).exists()) {
         all.notes.push(format!(

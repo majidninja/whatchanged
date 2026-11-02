@@ -150,6 +150,27 @@ impl Tz {
         let guess = local - self.offset_at(local);
         local - self.offset_at(guess)
     }
+
+    /// Parses a log timestamp like `2024-05-01T09:12:00+0200`. A trailing
+    /// `+HHMM`/`-HHMM` offset is used if present, otherwise the time is taken
+    /// as local. Used by the pacman and dnf logs.
+    pub fn parse_stamp(&self, s: &str) -> Option<i64> {
+        let n = s.len();
+        if n > 5 && s.is_char_boundary(n - 5) {
+            let (clock, off) = s.split_at(n - 5);
+            let sign = match off.as_bytes()[0] {
+                b'+' => 1,
+                b'-' => -1,
+                _ => 0,
+            };
+            if sign != 0 && off[1..].bytes().all(|b| b.is_ascii_digit()) {
+                let h: i64 = off[1..3].parse().ok()?;
+                let m: i64 = off[3..].parse().ok()?;
+                return Some(DateTime::parse(clock)?.to_epoch(sign * (h * HOUR + m * MINUTE)));
+            }
+        }
+        Some(self.to_epoch(DateTime::parse(s)?))
+    }
 }
 
 fn note(why: &str) -> String {
