@@ -324,3 +324,27 @@ may have transaction lines. If the history is only in
 `/usr/lib/sysimage/libdnf5/transaction_history.sqlite`, add a note like
 "dnf5 history is in a database we can't read" when that file exists and no
 dnf.rpm.log does. Then flatpak.
+
+## 2026-11-03
+
+**dnf5** (Fedora 41+), no new dependencies. dnf5 doesn't write
+`dnf.rpm.log`; its history lives only in
+`/usr/lib/sysimage/libdnf5/transaction_history.sqlite`, which we can't read
+without a sqlite crate. In `sources/dnf.rs`:
+- `dnf5_event`: the newest mtime of the database and its `-wal` file
+  becomes one `pkg` event, "dnf5 changed packages (details: dnf5 history
+  info last)", if it's at or after `since`.
+- Skipped when a dnf.rpm.log was written as late or later (dnf4 did the
+  work and the log already has the details).
+- `pkg::collect` counts the database as a package log, so a dnf5-only
+  machine doesn't get "no package manager log found".
+  49 tests + 1 ignored.
+
+Limits: only the *last* dnf5 transaction shows up. Earlier ones since
+`--since` are invisible. Not checked on a real Fedora 41 box. Also worth
+checking: does dnf5 write anything useful to `/var/log/dnf5.log`?
+
+Next: flatpak (roadmap). System installs live in `/var/lib/flatpak`, user
+installs in `~/.local/share/flatpak`. Probably mtimes of
+`app/<id>/<arch>/<branch>/active` symlinks (that's the deployed commit),
+one event per app: "flatpak updated org.mozilla.firefox".

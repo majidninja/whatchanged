@@ -7,7 +7,13 @@
 //! reads "mesa 24.1-1.fc40 -> 24.2-1.fc40", like the other package logs.
 //! dnf keeps the full history in a sqlite database, but reading that would
 //! need a crate; this plain log is enough for recent changes.
+//!
+//! dnf5 (Fedora 41 and newer) doesn't write this log at all, only its
+//! database. We can't read the database, but its modification time tells us
+//! when the last dnf5 transaction ran, so we show that as one event and point
+//! to `dnf5 history`.
 
+use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
 use crate::sources::pkg::{Action, group};
@@ -20,8 +26,39 @@ pub const LOGS: &[&str] = &["/var/log/dnf.rpm.log.1", "/var/log/dnf.rpm.log"];
 
 pub fn collect(root: &Path, since: i64, tz: &Tz) -> SourceResult {
     let (texts, notes) = read_logs("dnf", root, LOGS);
-    let events = texts.iter().flat_map(|t| parse(t, since, tz)).collect();
+    let mut events: Vec<Event> = texts.iter().flat_map(|t| parse(t, since, tz)).collect();
+    events.extend(dnf5_event(root, since));
     SourceResult { events, notes }
+}
+
+/// dnf5's transaction history. sqlite may write the latest changes to the
+/// `-wal` file next to it first, so we look at both.
+pub const DNF5_HISTORY: &str = "/usr/lib/sysimage/libdnf5/transaction_history.sqlite";
+
+/// Last change of a file below `root`, in seconds since the epoch.
+fn mtime(root: &Path, path: &str) -> Option<i64> {
+    std::fs::metadata(crate::sources::under(root, path))
+        .ok()
+        .map(|m| m.mtime())
+}
+
+/// One event for the last dnf5 transaction, if it ran at or after `since`
+/// and the rpm log (which dnf5 doesn't write) wasn't written as late.
+fn dnf5_event(root: &Path, since: i64) -> Option<Event> {
+    let wal = format!("{DNF5_HISTORY}-wal");
+    let db = [DNF5_HISTORY, wal.as_str()]
+        .iter()
+        .filter_map(|p| mtime(root, p))
+        .max()?;
+    let log = LOGS.iter().filter_map(|p| mtime(root, p)).max();
+    if db < since || log.is_some_and(|l| l >= db) {
+        return None;
+    }
+    Some(Event {
+        time: db,
+        kind: "pkg",
+        text: "dnf5 changed packages (details: dnf5 history info last)".to_string(),
+    })
 }
 
 /// Splits `name-version-release.arch` into name and `version-release`.
@@ -159,5 +196,37 @@ mod tests {
         assert!(r.events.is_empty() && r.notes.is_empty());
         root.file("/var/log/dnf.rpm.log", SAMPLE);
         assert_eq!(collect(&root.0, 0, &Tz::utc()).events.len(), 4);
+    }
+
+    fn set_mtime(root: &crate::sources::TestRoot, path: &str, secs: u64) {
+        let t = std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs);
+        std::fs::File::options()
+            .write(true)
+            .open(crate::sources::under(&root.0, path))
+            .unwrap()
+            .set_modified(t)
+            .unwrap();
+    }
+
+    #[test]
+    fn dnf5_database_change_is_one_event() {
+        let root = crate::sources::TestRoot::new("dnf5");
+        assert!(dnf5_event(&root.0, 0).is_none());
+        root.file(DNF5_HISTORY, "");
+        set_mtime(&root, DNF5_HISTORY, 1714554720);
+        let e = dnf5_event(&root.0, 1714500000).unwrap();
+        assert_eq!(e.time, 1714554720);
+        assert!(e.text.contains("dnf5 history"));
+        // Too old.
+        assert!(dnf5_event(&root.0, 1714554721).is_none());
+        // The -wal file is newer: its time wins.
+        let wal = format!("{DNF5_HISTORY}-wal");
+        root.file(&wal, "");
+        set_mtime(&root, &wal, 1714560000);
+        assert_eq!(dnf5_event(&root.0, 0).unwrap().time, 1714560000);
+        // An rpm log written as late means dnf4 did the work; it has details.
+        root.file("/var/log/dnf.rpm.log", "");
+        set_mtime(&root, "/var/log/dnf.rpm.log", 1714560000);
+        assert!(dnf5_event(&root.0, 0).is_none());
     }
 }

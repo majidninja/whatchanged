@@ -24,7 +24,9 @@ Early days. Right now it reads:
 - the **dnf log** (Fedora, RHEL, CentOS Stream, ...): the same, from
   `/var/log/dnf.rpm.log`. Versions are shown as `version-release`, e.g.
   `kernel-core 6.12.4-200.fc40 -> 6.12.5-200.fc40`. Fedora 41 and newer
-  use dnf5, which may not write this log; that isn't handled yet.
+  use dnf5, which only keeps a database whatchanged can't read. For dnf5
+  you get one line with the time of the last package change, and a hint
+  to run `dnf5 history info last` for the details.
 
   It only mentions a missing package log if it found none at all, so
   an Arch machine won't complain about dpkg, and vice versa.

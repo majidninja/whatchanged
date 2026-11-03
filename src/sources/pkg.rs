@@ -20,7 +20,7 @@ pub fn collect(root: &Path, since: i64, tz: &Tz) -> SourceResult {
         all.events.extend(r.events);
         all.notes.extend(r.notes);
     }
-    let logs: Vec<&str> = [dpkg::LOGS, pacman::LOGS, dnf::LOGS].concat();
+    let logs: Vec<&str> = [dpkg::LOGS, pacman::LOGS, dnf::LOGS, &[dnf::DNF5_HISTORY]].concat();
     // Unreadable logs already produced a note of their own.
     if all.notes.is_empty() && !logs.iter().any(|p| under(root, p).exists()) {
         all.notes.push(format!(
@@ -113,6 +113,15 @@ mod tests {
             "/var/log/dpkg.log",
             "2024-05-01 14:00:00 install htop:amd64 <none> 3.3.0-4\n",
         );
+        let r = collect(&root.0, 0, &Tz::utc());
+        assert_eq!(r.events.len(), 1);
+        assert!(r.notes.is_empty());
+    }
+
+    #[test]
+    fn no_note_when_only_dnf5_history_exists() {
+        let root = TestRoot::new("pkg-dnf5");
+        root.file(dnf::DNF5_HISTORY, "");
         let r = collect(&root.0, 0, &Tz::utc());
         assert_eq!(r.events.len(), 1);
         assert!(r.notes.is_empty());
