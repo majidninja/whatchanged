@@ -14,7 +14,7 @@ Notes to self between sessions. Read this first.
 8. [x] systemd: unit files and `*.wants/` symlinks in `/etc/systemd` and `~/.config/systemd`
 9. [x] Shell startup files: `~/.bashrc`, `~/.profile`, `~/.zshrc`, `/etc/profile.d`
 10. [x] Crontabs: `/etc/crontab`, `/etc/cron.d`, `/var/spool/cron` (may need root)
-11. [ ] Other package managers: pacman.log (done), dnf via `dnf.rpm.log` (done; dnf5 todo), flatpak
+11. [ ] Other package managers: pacman.log (done), dnf via `dnf.rpm.log` (done), dnf5 (last change only, done), flatpak (done), snap
 12. [ ] CLI: `--only pkg,config`, `--until`; man page
 13. [x] Sources take a root path (`--root DIR`); `TestRoot` scratch dir for tests
 14. [x] With `--root`, read the time zone from `<root>/etc/localtime` too
@@ -348,3 +348,26 @@ Next: flatpak (roadmap). System installs live in `/var/lib/flatpak`, user
 installs in `~/.local/share/flatpak`. Probably mtimes of
 `app/<id>/<arch>/<branch>/active` symlinks (that's the deployed commit),
 one event per app: "flatpak updated org.mozilla.firefox".
+
+## 2026-11-04
+
+**flatpak** (roadmap), no new dependencies. New `sources/flatpak.rs`, own
+entry in `collect_all`, events of kind `pkg` grouped with `pkg::group`
+(verb `flatpak`):
+- Scans `/var/lib/flatpak/{app,runtime}` and each home's
+  `~/.local/share/flatpak/{app,runtime}` for
+  `<id>/<arch>/<branch>/active` symlinks; the symlink's own mtime
+  (`symlink_metadata`) is when that ref was last deployed.
+- Apps are shown by id, runtimes as `id//branch` (flatpak's notation, since
+  several branches sit side by side); user installs get ` (user)`.
+- No flatpak directory is silent (not an error); unreadable dirs give a note.
+  51 tests + 1 ignored.
+
+Limits: can't tell install from update; uninstalls invisible. Not checked
+on a real flatpak machine (none here) — worth confirming the `active` link
+really is replaced on each update rather than kept.
+
+Next: snap. `/var/lib/snapd/snaps/<name>_<rev>.snap` files: ctime of the
+newest revision per snap = install/refresh time; with two revisions present
+we could even say "refreshed rev 123 -> 124". Check `/var/lib/snapd/state.json`
+too (JSON, root-only?).

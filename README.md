@@ -30,6 +30,11 @@ Early days. Right now it reads:
 
   It only mentions a missing package log if it found none at all, so
   an Arch machine won't complain about dpkg, and vice versa.
+- **flatpak apps and runtimes**, system-wide and per user, as `pkg` lines like
+  `flatpak   org.mozilla.firefox, org.gnome.Platform//47`. Flatpak keeps no
+  log, so this is the time each app was last installed or updated (it can't
+  tell which), and removed apps don't show up. Per-user installs are marked
+  `(user)`.
 - **installed kernels** (any distro). It also tells you which one is running,
   and marks kernels installed since the last boot as "not booted yet", which
   is a common answer to "why is it different after the reboot?"
@@ -60,7 +65,7 @@ Early days. Right now it reads:
   in `/var/spool/cron`, which normally only root can read; without root
   you'll get a note saying they were skipped. Removed crontabs are not shown.
 
-More sources are coming: flatpak next.
+More sources are coming: snap next.
 
 Times are shown in your local time zone, the same one `date` uses: it comes
 from `$TZ` if that is set, otherwise from `/etc/localtime`. To see the timeline
