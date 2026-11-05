@@ -20,6 +20,7 @@ pub mod kernel;
 pub mod pacman;
 pub mod pkg;
 pub mod shell;
+pub mod snap;
 pub mod systemd;
 
 /// Runs every source and returns their results, labelled by name.
@@ -27,6 +28,7 @@ pub fn collect_all(root: &Path, since: i64, tz: &Tz) -> Vec<(&'static str, Sourc
     vec![
         ("pkg", pkg::collect(root, since, tz)),
         ("flatpak", flatpak::collect(root, since)),
+        ("snap", snap::collect(root, since)),
         ("kernel", kernel::collect(root, since)),
         ("config", etc::collect(root, since)),
         ("shell", shell::collect(root, since)),

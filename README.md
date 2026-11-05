@@ -35,6 +35,10 @@ Early days. Right now it reads:
   log, so this is the time each app was last installed or updated (it can't
   tell which), and removed apps don't show up. Per-user installs are marked
   `(user)`.
+- **snaps**, from the files in `/var/lib/snapd/snaps`, as `pkg` lines like
+  `snap      firefox 4100 -> 4200, hello rev 42`. snapd keeps an old
+  revision or two after a refresh, so when one is still there you see which
+  revision it came from. Removed and reverted snaps don't show up.
 - **installed kernels** (any distro). It also tells you which one is running,
   and marks kernels installed since the last boot as "not booted yet", which
   is a common answer to "why is it different after the reboot?"
@@ -65,7 +69,7 @@ Early days. Right now it reads:
   in `/var/spool/cron`, which normally only root can read; without root
   you'll get a note saying they were skipped. Removed crontabs are not shown.
 
-More sources are coming: snap next.
+Next up: `--only pkg,config` and `--until` on the command line.
 
 Times are shown in your local time zone, the same one `date` uses: it comes
 from `$TZ` if that is set, otherwise from `/etc/localtime`. To see the timeline

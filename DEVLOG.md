@@ -14,7 +14,7 @@ Notes to self between sessions. Read this first.
 8. [x] systemd: unit files and `*.wants/` symlinks in `/etc/systemd` and `~/.config/systemd`
 9. [x] Shell startup files: `~/.bashrc`, `~/.profile`, `~/.zshrc`, `/etc/profile.d`
 10. [x] Crontabs: `/etc/crontab`, `/etc/cron.d`, `/var/spool/cron` (may need root)
-11. [ ] Other package managers: pacman.log (done), dnf via `dnf.rpm.log` (done), dnf5 (last change only, done), flatpak (done), snap
+11. [ ] Other package managers: pacman.log (done), dnf via `dnf.rpm.log` (done), dnf5 (last change only, done), flatpak (done), snap (done)
 12. [ ] CLI: `--only pkg,config`, `--until`; man page
 13. [x] Sources take a root path (`--root DIR`); `TestRoot` scratch dir for tests
 14. [x] With `--root`, read the time zone from `<root>/etc/localtime` too
@@ -371,3 +371,25 @@ Next: snap. `/var/lib/snapd/snaps/<name>_<rev>.snap` files: ctime of the
 newest revision per snap = install/refresh time; with two revisions present
 we could even say "refreshed rev 123 -> 124". Check `/var/lib/snapd/state.json`
 too (JSON, root-only?).
+
+## 2026-11-05
+
+**snap** (roadmap 11, now done), no new dependencies. New `sources/snap.rs`,
+own entry in `collect_all`, events of kind `pkg` grouped with `pkg::group`
+(verb `snap`):
+- Lists `/var/lib/snapd/snaps/<name>_<rev>.snap` (regular files only, so
+  the `partial/` download dir is skipped). Per snap, the revision with the
+  newest mtime is the last install/refresh.
+- If an older revision is still on disk (snapd keeps ~2), the line reads
+  "firefox 4100 -> 4200"; otherwise "hello rev 42".
+- Local revisions like `x1` are accepted. No snapd directory is silent;
+  an unreadable one gives a note. 54 tests + 1 ignored.
+
+Chose mtime over ctime so tests can set it (`File::set_modified`). Not
+checked on a real Ubuntu box: worth confirming snapd doesn't preserve the
+store's mtime when it moves the downloaded file into place (if it does,
+ctime would be the better clock). `state.json` was skipped (root-only, big).
+
+Next: CLI roadmap 12: `--only pkg,config` (filter by source name from
+`collect_all`, error on unknown names listing the valid ones) and
+`--until` (reuse `since` parsing). Keep notes only from the chosen sources.
