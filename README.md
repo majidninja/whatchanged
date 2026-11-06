@@ -69,8 +69,6 @@ Early days. Right now it reads:
   in `/var/spool/cron`, which normally only root can read; without root
   you'll get a note saying they were skipped. Removed crontabs are not shown.
 
-Next up: `--only pkg,config` and `--until` on the command line.
-
 Times are shown in your local time zone, the same one `date` uses: it comes
 from `$TZ` if that is set, otherwise from `/etc/localtime`. To see the timeline
 in another zone, set it for one run, e.g. `TZ=UTC whatchanged --since 2h`.
@@ -107,6 +105,19 @@ whatchanged --since today
 whatchanged --since 2024-05-01
 whatchanged --since "2024-05-01 09:00"
 ```
+
+To look at a window in the past, add `--until` (same forms as `--since`).
+To see only some kinds of change, use `--only` with a comma-separated list:
+
+```
+whatchanged --since 2024-05-01 --until 2024-05-03   # May 1st and 2nd only
+whatchanged --since 1w --only pkg                   # packages (incl. flatpak, snap)
+whatchanged --only config,service,env
+```
+
+The names for `--only` are `pkg`, `flatpak`, `snap`, `kernel`, `config`,
+`shell` (or `env`), `service` and `cron`. Mistype one and it tells you the
+valid names.
 
 If the machine won't boot at all, start a rescue/live USB, mount the broken
 system somewhere, and point `whatchanged` at it:

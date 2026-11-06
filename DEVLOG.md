@@ -393,3 +393,26 @@ ctime would be the better clock). `state.json` was skipped (root-only, big).
 Next: CLI roadmap 12: `--only pkg,config` (filter by source name from
 `collect_all`, error on unknown names listing the valid ones) and
 `--until` (reuse `since` parsing). Keep notes only from the chosen sources.
+
+## 2026-11-06
+
+**CLI: `--only` and `--until`** (roadmap 12), no new dependencies.
+- `sources::SOURCES` lists every source as (name, kind). `select("pkg,config")`
+  matches a word against either, so `pkg` picks pkg + flatpak + snap (they
+  all show as `pkg`) and `env` picks the shell source. Unknown words are an
+  error that lists the valid names; the run order stays the usual one.
+- `collect_all` now takes the chosen names and only runs those sources, so
+  notes from unselected sources don't show up either.
+- `--until WHEN` reuses `parse_since` (its error no longer says "--since";
+  main prefixes the flag). Events at or after `until` are dropped after
+  collecting. `--until` not later than `--since` is an error.
+  56 tests + 1 ignored.
+
+Limits: `--until` filters after `pkg::group`, so a group of package
+changes is kept/dropped by its group time. Sources still read everything
+after `since` (fine, logs are small).
+
+Next: maybe an "at a glance" summary line at the end ("12 package changes,
+3 configs edited"), or `/var/log/apt/history.log` to show *which command*
+did an upgrade (`Commandline: apt install foo`). The latter is more useful
+for "who did this" — start there.

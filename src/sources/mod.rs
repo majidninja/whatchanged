@@ -23,18 +23,79 @@ pub mod shell;
 pub mod snap;
 pub mod systemd;
 
-/// Runs every source and returns their results, labelled by name.
-pub fn collect_all(root: &Path, since: i64, tz: &Tz) -> Vec<(&'static str, SourceResult)> {
-    vec![
-        ("pkg", pkg::collect(root, since, tz)),
-        ("flatpak", flatpak::collect(root, since)),
-        ("snap", snap::collect(root, since)),
-        ("kernel", kernel::collect(root, since)),
-        ("config", etc::collect(root, since)),
-        ("shell", shell::collect(root, since)),
-        ("service", systemd::collect(root, since)),
-        ("cron", cron::collect(root, since)),
-    ]
+/// Every source as (name, kind of the events it produces). The order is
+/// the order they run in.
+pub const SOURCES: &[(&str, &str)] = &[
+    ("pkg", "pkg"),
+    ("flatpak", "pkg"),
+    ("snap", "pkg"),
+    ("kernel", "kernel"),
+    ("config", "config"),
+    ("shell", "env"),
+    ("service", "service"),
+    ("cron", "cron"),
+];
+
+/// Turns `--only pkg,config` into a list of source names. A word matches
+/// a source by its name or by the kind shown in the timeline, so `pkg`
+/// also picks flatpak and snap, and `env` picks the shell source.
+pub fn select(only: &str) -> Result<Vec<&'static str>, String> {
+    let mut chosen = Vec::new();
+    for word in only.split(',').map(str::trim).filter(|w| !w.is_empty()) {
+        let mut known = false;
+        for &(name, kind) in SOURCES {
+            if word == name || word == kind {
+                known = true;
+                if !chosen.contains(&name) {
+                    chosen.push(name);
+                }
+            }
+        }
+        if !known {
+            let names: Vec<&str> = SOURCES.iter().map(|s| s.0).collect();
+            return Err(format!(
+                "unknown source '{word}' (choose from: {}, env)",
+                names.join(", ")
+            ));
+        }
+    }
+    if chosen.is_empty() {
+        return Err("--only needs at least one source, e.g. --only pkg,config".into());
+    }
+    // Keep the usual run order, whatever order the user typed.
+    chosen.sort_by_key(|n| SOURCES.iter().position(|s| s.0 == *n));
+    Ok(chosen)
+}
+
+/// Runs the named sources and returns their results, labelled by name.
+pub fn collect_all(
+    root: &Path,
+    since: i64,
+    tz: &Tz,
+    names: &[&'static str],
+) -> Vec<(&'static str, SourceResult)> {
+    names
+        .iter()
+        .map(|&name| {
+            let result = match name {
+                "pkg" => pkg::collect(root, since, tz),
+                "flatpak" => flatpak::collect(root, since),
+                "snap" => snap::collect(root, since),
+                "kernel" => kernel::collect(root, since),
+                "config" => etc::collect(root, since),
+                "shell" => shell::collect(root, since),
+                "service" => systemd::collect(root, since),
+                "cron" => cron::collect(root, since),
+                _ => unreachable!("unknown source {name}"),
+            };
+            (name, result)
+        })
+        .collect()
+}
+
+/// All source names, for when `--only` isn't given.
+pub fn all_names() -> Vec<&'static str> {
+    SOURCES.iter().map(|s| s.0).collect()
 }
 
 /// Joins an absolute system path like `/var/log/dpkg.log` onto `root`.
@@ -104,6 +165,29 @@ mod tests {
             PathBuf::from("/mnt/var/log/x")
         );
         assert_eq!(under(Path::new("/"), "/etc"), PathBuf::from("/etc"));
+    }
+
+    #[test]
+    fn select_by_name_or_kind() {
+        assert_eq!(
+            select("config,pkg"),
+            Ok(vec!["pkg", "flatpak", "snap", "config"])
+        );
+        assert_eq!(select("snap"), Ok(vec!["snap"]));
+        assert_eq!(select("env, cron"), Ok(vec!["shell", "cron"]));
+        assert_eq!(select("pkg,snap"), Ok(vec!["pkg", "flatpak", "snap"]));
+        let err = select("pkg,docker").unwrap_err();
+        assert!(err.contains("'docker'") && err.contains("flatpak"), "{err}");
+        assert!(select(",").is_err());
+    }
+
+    #[test]
+    fn select_names_all_have_a_collector() {
+        // collect_all panics on a name it doesn't know; make sure every
+        // listed source is wired up (on an empty root, so nothing is read).
+        let root = TestRoot::new("selectall");
+        let got = collect_all(&root.0, 0, &Tz::utc(), &all_names());
+        assert_eq!(got.len(), SOURCES.len());
     }
 
     #[test]

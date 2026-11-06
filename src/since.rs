@@ -1,4 +1,4 @@
-//! Parsing the `--since` argument into an epoch timestamp.
+//! Parsing the `--since` and `--until` arguments into epoch timestamps.
 
 use crate::time::{DAY, DateTime, HOUR, MINUTE, civil_from_days, days_from_civil};
 use crate::tz::Tz;
@@ -35,9 +35,9 @@ pub fn parse_since(s: &str, now: i64, tz: &Tz) -> Result<i64, String> {
             return Ok(now - n * secs);
         }
     }
-    DateTime::parse(s).map(|dt| tz.to_epoch(dt)).ok_or_else(|| {
-        format!("can't understand --since '{s}' (try: yesterday, 2h, 3d, 2024-05-01)")
-    })
+    DateTime::parse(s)
+        .map(|dt| tz.to_epoch(dt))
+        .ok_or_else(|| format!("can't understand '{s}' (try: yesterday, 2h, 3d, 2024-05-01)"))
 }
 
 #[cfg(test)]
