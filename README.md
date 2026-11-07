@@ -18,7 +18,8 @@ $ whatchanged --since yesterday
 
 Early days. Right now it reads:
 
-- the **dpkg log** (Debian, Ubuntu, Mint, ...)
+- the **dpkg log** (Debian, Ubuntu, Mint, ...): installs, upgrades,
+  removals and purges from `/var/log/dpkg.log` and `/var/log/dpkg.log.1`.
 - the **pacman log** (Arch, Manjaro, EndeavourOS, ...): installs, upgrades,
   downgrades and removals from `/var/log/pacman.log`.
 - the **dnf log** (Fedora, RHEL, CentOS Stream, ...): the same, from
