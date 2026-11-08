@@ -20,6 +20,11 @@ Early days. Right now it reads:
 
 - the **dpkg log** (Debian, Ubuntu, Mint, ...): installs, upgrades,
   removals and purges from `/var/log/dpkg.log` and `/var/log/dpkg.log.1`.
+  If apt's `/var/log/apt/history.log` is there too, each line also says
+  which command made the change and who ran it, so you can tell your own
+  `apt upgrade` from an automatic one:
+  `installed gh 2.46.0-3 (apt install gh, by majid)` or
+  `upgraded  apt 3.0.3 -> 3.0.4 (/usr/bin/unattended-upgrade)`.
 - the **pacman log** (Arch, Manjaro, EndeavourOS, ...): installs, upgrades,
   downgrades and removals from `/var/log/pacman.log`.
 - the **dnf log** (Fedora, RHEL, CentOS Stream, ...): the same, from

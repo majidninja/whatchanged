@@ -416,3 +416,27 @@ Next: maybe an "at a glance" summary line at the end ("12 package changes,
 3 configs edited"), or `/var/log/apt/history.log` to show *which command*
 did an upgrade (`Commandline: apt install foo`). The latter is more useful
 for "who did this" — start there.
+
+## 2026-11-08
+
+**apt history: which command did it**, no new dependencies. In `sources/dpkg.rs`:
+- Reads `/var/log/apt/history.log{.1,}` (optional, missing is silent) into
+  runs: Start-Date, End-Date, Commandline, Requested-By (uid stripped).
+  Dates have two spaces between day and time; whitespace is normalized.
+- A dpkg event (group) whose time is inside a run gets
+  ` (apt upgrade, by majid)`, or just ` (command)` for root /
+  unattended-upgrades. Commands longer than 60 chars are cut with "...".
+- Runs without a Commandline are skipped; a run without End-Date
+  (interrupted apt) counts as one hour long. 59 tests + 1 ignored.
+
+Checked on this Debian box: unattended upgrades show as
+`(/usr/bin/unattended-upgrade)`, which is exactly the "it changed by
+itself overnight" answer.
+
+Limits: a dpkg group is matched by its first action's time only. Plain
+`dpkg -i foo.deb` has no apt run, so no command (correct). Rotated `.gz`
+history is ignored, like dpkg.log.
+
+Next: an "at a glance" summary line at the end ("12 package changes,
+3 configs edited"), or check pacman.log's `[PACMAN] Running 'pacman -Syu'`
+lines to do the same for Arch.

@@ -4,6 +4,10 @@
 //! `2024-05-01 09:12:33 upgrade mesa:amd64 24.1-1 24.2-1`
 //! We only use install/upgrade/remove/purge; status and configure lines repeat
 //! the same information.
+//!
+//! apt also keeps `/var/log/apt/history.log`, one block per run, saying which
+//! command did it and who asked. When a dpkg change falls inside such a run,
+//! the command is added: `upgraded  mesa 24.1 -> 24.2 (apt upgrade, by majid)`.
 
 use std::path::Path;
 
@@ -15,10 +19,111 @@ use crate::tz::Tz;
 
 pub const LOGS: &[&str] = &["/var/log/dpkg.log.1", "/var/log/dpkg.log"];
 
+/// apt's own log of runs. Optional: dpkg works fine without it.
+pub const APT_HISTORY: &[&str] = &["/var/log/apt/history.log.1", "/var/log/apt/history.log"];
+
 pub fn collect(root: &Path, since: i64, tz: &Tz) -> SourceResult {
-    let (texts, notes) = read_logs("dpkg", root, LOGS);
-    let events = texts.iter().flat_map(|t| parse(t, since, tz)).collect();
+    let (texts, mut notes) = read_logs("dpkg", root, LOGS);
+    let mut events: Vec<Event> = texts.iter().flat_map(|t| parse(t, since, tz)).collect();
+    let (history, apt_notes) = read_logs("apt", root, APT_HISTORY);
+    notes.extend(apt_notes);
+    let runs: Vec<AptRun> = history.iter().flat_map(|t| apt_runs(t, tz)).collect();
+    annotate(&mut events, &runs);
     SourceResult { events, notes }
+}
+
+/// One block of apt's history.log.
+#[derive(Debug, PartialEq)]
+struct AptRun {
+    start: i64,
+    end: i64,
+    command: String,
+    user: Option<String>,
+}
+
+/// Longest command shown; long `apt-get -o ...` lines are cut.
+const MAX_COMMAND: usize = 60;
+
+/// Parses history.log blocks:
+/// ```text
+/// Start-Date: 2024-05-01  09:12:20
+/// Commandline: apt upgrade
+/// Requested-By: majid (1000)
+/// Upgrade: mesa:amd64 (24.1-1, 24.2-1)
+/// End-Date: 2024-05-01  09:13:05
+/// ```
+/// Blocks without a command line are skipped. A block without an end
+/// (apt was interrupted) is taken to last an hour.
+fn apt_runs(text: &str, tz: &Tz) -> Vec<AptRun> {
+    let time = |v: &str| {
+        let v = v.split_whitespace().collect::<Vec<_>>().join(" ");
+        DateTime::parse(&v).map(|dt| tz.to_epoch(dt))
+    };
+    let finish = |cur: &mut Option<AptRun>, runs: &mut Vec<AptRun>| {
+        if let Some(r) = cur.take().filter(|r| !r.command.is_empty()) {
+            runs.push(r);
+        }
+    };
+    let mut runs = Vec::new();
+    let mut cur: Option<AptRun> = None;
+    for line in text.lines() {
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        let value = value.trim();
+        match key {
+            "Start-Date" => {
+                finish(&mut cur, &mut runs);
+                cur = time(value).map(|start| AptRun {
+                    start,
+                    end: start + 3600,
+                    command: String::new(),
+                    user: None,
+                });
+            }
+            "Commandline" => {
+                if let Some(r) = &mut cur {
+                    r.command = shorten(value);
+                }
+            }
+            "Requested-By" => {
+                if let Some(r) = &mut cur {
+                    // "majid (1000)" -> "majid"
+                    let name = value.split(" (").next().unwrap_or(value).trim();
+                    r.user = Some(name.to_string()).filter(|n| !n.is_empty());
+                }
+            }
+            "End-Date" => {
+                if let (Some(r), Some(end)) = (&mut cur, time(value)) {
+                    r.end = end;
+                }
+                finish(&mut cur, &mut runs);
+            }
+            _ => {}
+        }
+    }
+    finish(&mut cur, &mut runs);
+    runs
+}
+
+fn shorten(command: &str) -> String {
+    if command.chars().count() <= MAX_COMMAND {
+        return command.to_string();
+    }
+    let cut: String = command.chars().take(MAX_COMMAND - 3).collect();
+    format!("{cut}...")
+}
+
+/// Adds "(command, by user)" to events that happened during an apt run.
+fn annotate(events: &mut [Event], runs: &[AptRun]) {
+    for e in events {
+        if let Some(r) = runs.iter().find(|r| r.start <= e.time && e.time <= r.end) {
+            match &r.user {
+                Some(u) => e.text.push_str(&format!(" ({}, by {u})", r.command)),
+                None => e.text.push_str(&format!(" ({})", r.command)),
+            }
+        }
+    }
 }
 
 fn parse_line(line: &str, tz: &Tz) -> Option<Action> {
@@ -110,6 +215,66 @@ garbage line
         root.file("/var/log/dpkg.log", SAMPLE);
         let r = collect(&root.0, 0, &Tz::utc());
         assert_eq!(r.events.len(), 3);
+        assert!(r.notes.is_empty());
+    }
+
+    const HISTORY: &str = "
+Start-Date: 2024-05-01  09:12:20
+Commandline: apt upgrade
+Requested-By: majid (1000)
+Upgrade: mesa:amd64 (24.1-1, 24.2-1)
+End-Date: 2024-05-01  09:13:05
+
+Start-Date: 2024-05-01  13:59:58
+Commandline: apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install htop
+Install: htop:amd64 (3.3.0-4)
+End-Date: 2024-05-01  14:00:03
+
+Start-Date: 2024-05-01  20:00:00
+Upgrade: no-command:amd64 (1, 2)
+End-Date: 2024-05-01  20:00:05
+";
+
+    #[test]
+    fn parses_apt_history() {
+        let runs = apt_runs(HISTORY, &Tz::utc());
+        assert_eq!(runs.len(), 2);
+        assert_eq!(
+            runs[0],
+            AptRun {
+                start: 1714554740,
+                end: 1714554785,
+                command: "apt upgrade".into(),
+                user: Some("majid".into()),
+            }
+        );
+        assert_eq!(runs[1].user, None);
+        assert!(runs[1].command.ends_with("..."));
+        assert_eq!(runs[1].command.chars().count(), MAX_COMMAND);
+    }
+
+    #[test]
+    fn interrupted_run_lasts_an_hour() {
+        let text = "Start-Date: 2024-05-01  09:00:00\nCommandline: apt install x\n";
+        let runs = apt_runs(text, &Tz::utc());
+        assert_eq!(runs[0].end - runs[0].start, 3600);
+    }
+
+    #[test]
+    fn adds_command_to_dpkg_events() {
+        let root = crate::sources::TestRoot::new("dpkg-apt");
+        root.file("/var/log/dpkg.log", SAMPLE);
+        root.file("/var/log/apt/history.log", HISTORY);
+        let r = collect(&root.0, 0, &Tz::utc());
+        let texts: Vec<&str> = r.events.iter().map(|e| e.text.as_str()).collect();
+        assert!(
+            texts[0].ends_with(" (apt upgrade, by majid)"),
+            "{}",
+            texts[0]
+        );
+        assert!(texts[1].starts_with("installed htop 3.3.0-4 (apt-get -y"));
+        // The removal at 14:00:05 is after that run ended.
+        assert_eq!(texts[2], "removed   nano 7.2-1");
         assert!(r.notes.is_empty());
     }
 }
