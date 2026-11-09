@@ -81,6 +81,39 @@ pub fn group(actions: impl Iterator<Item = Action>, since: i64) -> Vec<Event> {
         .collect()
 }
 
+/// One run of a package manager command, from its own log
+/// (apt's history.log, pacman's `[PACMAN] Running` lines).
+#[derive(Debug, PartialEq)]
+pub struct Run {
+    pub start: i64,
+    pub end: i64,
+    pub command: String,
+    pub user: Option<String>,
+}
+
+/// Longest command shown; long `apt-get -o ...` lines are cut.
+pub const MAX_COMMAND: usize = 60;
+
+pub fn shorten(command: &str) -> String {
+    if command.chars().count() <= MAX_COMMAND {
+        return command.to_string();
+    }
+    let cut: String = command.chars().take(MAX_COMMAND - 3).collect();
+    format!("{cut}...")
+}
+
+/// Adds "(command, by user)" to events whose time falls inside a run.
+pub fn annotate(events: &mut [Event], runs: &[Run]) {
+    for e in events {
+        if let Some(r) = runs.iter().find(|r| r.start <= e.time && e.time <= r.end) {
+            match &r.user {
+                Some(u) => e.text.push_str(&format!(" ({}, by {u})", r.command)),
+                None => e.text.push_str(&format!(" ({})", r.command)),
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

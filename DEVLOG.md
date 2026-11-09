@@ -440,3 +440,23 @@ history is ignored, like dpkg.log.
 Next: an "at a glance" summary line at the end ("12 package changes,
 3 configs edited"), or check pacman.log's `[PACMAN] Running 'pacman -Syu'`
 lines to do the same for Arch.
+
+## 2026-11-09
+
+**pacman: which command did it**, no new dependencies.
+- Moved `Run`, `shorten` and `annotate` from `dpkg.rs` to `pkg.rs` so
+  both sources share them (no change to the dpkg output).
+- `pacman.rs` now reads `[PACMAN] Running 'pacman -Syu'` lines as runs.
+  A run ends at its `[ALPM] transaction completed/failed/interrupted`
+  line, or one second before the next Running line, or after an hour if
+  neither comes. Package groups inside a run get ` (pacman -Syu)`.
+  pacman doesn't log the user, so there is no "by ...". 61 tests + 1 ignored.
+
+Limits: a `pacman -Syu` that had nothing to do leaves its run open for an
+hour, so a pamac/PackageKit transaction (no Running line) in that hour
+would be credited to it. Not checked on a real Arch box (none here).
+
+Next: an "at a glance" summary line at the end ("12 package changes,
+3 configs edited"), shown only when there is more than a screenful, or
+dnf's history to show the command for Fedora too (`dnf5 history` db is
+SQLite, so maybe only dnf.rpm.log / dnf.log `Command:`-style lines).

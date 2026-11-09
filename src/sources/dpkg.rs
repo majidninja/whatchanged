@@ -11,7 +11,7 @@
 
 use std::path::Path;
 
-use crate::sources::pkg::{Action, group};
+use crate::sources::pkg::{Action, Run, annotate, group, shorten};
 use crate::sources::read_logs;
 use crate::time::DateTime;
 use crate::timeline::{Event, SourceResult};
@@ -27,22 +27,10 @@ pub fn collect(root: &Path, since: i64, tz: &Tz) -> SourceResult {
     let mut events: Vec<Event> = texts.iter().flat_map(|t| parse(t, since, tz)).collect();
     let (history, apt_notes) = read_logs("apt", root, APT_HISTORY);
     notes.extend(apt_notes);
-    let runs: Vec<AptRun> = history.iter().flat_map(|t| apt_runs(t, tz)).collect();
+    let runs: Vec<Run> = history.iter().flat_map(|t| apt_runs(t, tz)).collect();
     annotate(&mut events, &runs);
     SourceResult { events, notes }
 }
-
-/// One block of apt's history.log.
-#[derive(Debug, PartialEq)]
-struct AptRun {
-    start: i64,
-    end: i64,
-    command: String,
-    user: Option<String>,
-}
-
-/// Longest command shown; long `apt-get -o ...` lines are cut.
-const MAX_COMMAND: usize = 60;
 
 /// Parses history.log blocks:
 /// ```text
@@ -54,18 +42,18 @@ const MAX_COMMAND: usize = 60;
 /// ```
 /// Blocks without a command line are skipped. A block without an end
 /// (apt was interrupted) is taken to last an hour.
-fn apt_runs(text: &str, tz: &Tz) -> Vec<AptRun> {
+fn apt_runs(text: &str, tz: &Tz) -> Vec<Run> {
     let time = |v: &str| {
         let v = v.split_whitespace().collect::<Vec<_>>().join(" ");
         DateTime::parse(&v).map(|dt| tz.to_epoch(dt))
     };
-    let finish = |cur: &mut Option<AptRun>, runs: &mut Vec<AptRun>| {
+    let finish = |cur: &mut Option<Run>, runs: &mut Vec<Run>| {
         if let Some(r) = cur.take().filter(|r| !r.command.is_empty()) {
             runs.push(r);
         }
     };
     let mut runs = Vec::new();
-    let mut cur: Option<AptRun> = None;
+    let mut cur: Option<Run> = None;
     for line in text.lines() {
         let Some((key, value)) = line.split_once(':') else {
             continue;
@@ -74,7 +62,7 @@ fn apt_runs(text: &str, tz: &Tz) -> Vec<AptRun> {
         match key {
             "Start-Date" => {
                 finish(&mut cur, &mut runs);
-                cur = time(value).map(|start| AptRun {
+                cur = time(value).map(|start| Run {
                     start,
                     end: start + 3600,
                     command: String::new(),
@@ -104,26 +92,6 @@ fn apt_runs(text: &str, tz: &Tz) -> Vec<AptRun> {
     }
     finish(&mut cur, &mut runs);
     runs
-}
-
-fn shorten(command: &str) -> String {
-    if command.chars().count() <= MAX_COMMAND {
-        return command.to_string();
-    }
-    let cut: String = command.chars().take(MAX_COMMAND - 3).collect();
-    format!("{cut}...")
-}
-
-/// Adds "(command, by user)" to events that happened during an apt run.
-fn annotate(events: &mut [Event], runs: &[AptRun]) {
-    for e in events {
-        if let Some(r) = runs.iter().find(|r| r.start <= e.time && e.time <= r.end) {
-            match &r.user {
-                Some(u) => e.text.push_str(&format!(" ({}, by {u})", r.command)),
-                None => e.text.push_str(&format!(" ({})", r.command)),
-            }
-        }
-    }
 }
 
 fn parse_line(line: &str, tz: &Tz) -> Option<Action> {
@@ -241,7 +209,7 @@ End-Date: 2024-05-01  20:00:05
         assert_eq!(runs.len(), 2);
         assert_eq!(
             runs[0],
-            AptRun {
+            Run {
                 start: 1714554740,
                 end: 1714554785,
                 command: "apt upgrade".into(),
@@ -250,7 +218,10 @@ End-Date: 2024-05-01  20:00:05
         );
         assert_eq!(runs[1].user, None);
         assert!(runs[1].command.ends_with("..."));
-        assert_eq!(runs[1].command.chars().count(), MAX_COMMAND);
+        assert_eq!(
+            runs[1].command.chars().count(),
+            crate::sources::pkg::MAX_COMMAND
+        );
     }
 
     #[test]

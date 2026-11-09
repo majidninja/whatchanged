@@ -26,7 +26,10 @@ Early days. Right now it reads:
   `installed gh 2.46.0-3 (apt install gh, by majid)` or
   `upgraded  apt 3.0.3 -> 3.0.4 (/usr/bin/unattended-upgrade)`.
 - the **pacman log** (Arch, Manjaro, EndeavourOS, ...): installs, upgrades,
-  downgrades and removals from `/var/log/pacman.log`.
+  downgrades and removals from `/var/log/pacman.log`, with the command
+  that made them when pacman logged one:
+  `upgraded  mesa 1:24.1-1 -> 1:24.2-1 (pacman -Syu)`. Graphical tools
+  like pamac don't log a command, so their changes show without one.
 - the **dnf log** (Fedora, RHEL, CentOS Stream, ...): the same, from
   `/var/log/dnf.rpm.log`. Versions are shown as `version-release`, e.g.
   `kernel-core 6.12.4-200.fc40 -> 6.12.5-200.fc40`. Fedora 41 and newer
