@@ -460,3 +460,19 @@ Next: an "at a glance" summary line at the end ("12 package changes,
 3 configs edited"), shown only when there is more than a screenful, or
 dnf's history to show the command for Fedora too (`dnf5 history` db is
 SQLite, so maybe only dnf.rpm.log / dnf.log `Command:`-style lines).
+
+## 2026-11-10
+
+**At-a-glance summary line**, no new dependencies.
+- `timeline::summary` counts events by kind, most common first (ties by
+  name): `37 changes: 26 pkg, 7 config, 2 env, 1 cron, 1 kernel`.
+- Only printed (on stdout, after a blank line) when there are more than
+  `SUMMARY_MIN` = 15 events; a short timeline is its own summary.
+- It counts timeline lines, not packages: one grouped "upgraded a, b, c"
+  line counts as 1 pkg. 62 tests + 1 ignored. Checked on this box with
+  `--since 30d`.
+
+Next: dnf's command for Fedora (look at what dnf.log / dnf5.log record
+for the command line; dnf5 history is SQLite, skip that), or a `--version`
+/ `--help` smoke test of argument parsing by moving it out of `main` into
+a testable function.

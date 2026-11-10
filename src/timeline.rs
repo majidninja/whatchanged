@@ -43,9 +43,51 @@ pub fn render(events: &[Event], tz: &Tz) -> String {
     out
 }
 
+/// Events above which `summary` gives a line: a short timeline is its
+/// own summary.
+pub const SUMMARY_MIN: usize = 15;
+
+/// One line counting the events by kind, most common first, e.g.
+/// "23 changes: 12 pkg, 8 config, 3 service". `None` for short
+/// timelines (`SUMMARY_MIN` events or fewer).
+pub fn summary(events: &[Event]) -> Option<String> {
+    if events.len() <= SUMMARY_MIN {
+        return None;
+    }
+    let mut counts: Vec<(&str, usize)> = Vec::new();
+    for e in events {
+        match counts.iter_mut().find(|(k, _)| *k == e.kind) {
+            Some((_, n)) => *n += 1,
+            None => counts.push((e.kind, 1)),
+        }
+    }
+    counts.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
+    let parts: Vec<String> = counts.iter().map(|(k, n)| format!("{n} {k}")).collect();
+    Some(format!("{} changes: {}", events.len(), parts.join(", ")))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn summary_counts_by_kind() {
+        let ev = |kind| Event {
+            time: 0,
+            kind,
+            text: String::new(),
+        };
+        let mut events: Vec<Event> = (0..SUMMARY_MIN).map(|_| ev("pkg")).collect();
+        assert_eq!(summary(&events), None);
+        events.push(ev("service"));
+        events.push(ev("config"));
+        events.push(ev("config"));
+        events.push(ev("cron"));
+        assert_eq!(
+            summary(&events).as_deref(),
+            Some("19 changes: 15 pkg, 2 config, 1 cron, 1 service")
+        );
+    }
 
     #[test]
     fn renders_sorted_with_day_headers() {

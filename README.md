@@ -142,6 +142,13 @@ With `--root`, times are shown in the mounted system's time zone (from its
 When a big `apt install` touches dozens of packages, the first few are listed
 and the rest are summarised as "and N more".
 
+When the timeline is long (more than 15 lines), one last line counts them by
+kind, so you can see at a glance where most of the change happened:
+
+```
+37 changes: 26 pkg, 7 config, 2 env, 1 cron, 1 kernel
+```
+
 You don't need root. If something can't be read (a missing log, no
 permission), `whatchanged` keeps going and lists what it skipped at the end,
 on stderr, so you know the picture may be incomplete.

@@ -112,6 +112,10 @@ fn main() -> ExitCode {
         }
     } else {
         print!("{}", timeline::render(&events, &tz));
+        if let Some(line) = timeline::summary(&events) {
+            println!();
+            println!("{line}");
+        }
     }
     if !notes.is_empty() {
         eprintln!();
