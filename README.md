@@ -128,6 +128,9 @@ The names for `--only` are `pkg`, `flatpak`, `snap`, `kernel`, `config`,
 `shell` (or `env`), `service` and `cron`. Mistype one and it tells you the
 valid names.
 
+`-s` and `-u` are short for `--since` and `--until`, and every option also
+works as `--since=2h`. `whatchanged --help` lists them all.
+
 If the machine won't boot at all, start a rescue/live USB, mount the broken
 system somewhere, and point `whatchanged` at it:
 

@@ -476,3 +476,19 @@ Next: dnf's command for Fedora (look at what dnf.log / dnf5.log record
 for the command line; dnf5 history is SQLite, skip that), or a `--version`
 / `--help` smoke test of argument parsing by moving it out of `main` into
 a testable function.
+
+## 2026-11-11
+
+**Argument parsing moved to `src/cli.rs` and tested**, no new dependencies.
+- `cli::parse(args) -> Result<Command, String>`, where `Command` is
+  `Help`, `Version` or `Run(Options)`. `main` just matches on it.
+- `--name=value` is split once up front, so both spellings go through the
+  same code (removes four `starts_with` arms). Short `-s=2h` is not split.
+- Small behaviour change: an empty value (`--only=`, `--since ""`) is now
+  "needs a value" instead of a later, vaguer error.
+- `-s`/`-u` already existed but were undocumented; now in `--help` (realigned)
+  and the README. 68 tests + 1 ignored.
+
+Next: dnf's command for Fedora (check what dnf.log / dnf5.log record for
+the command line; skip the dnf5 SQLite history), or an integration test that
+runs every source against a small fake `--root` tree under `target/`.

@@ -1,10 +1,10 @@
+mod cli;
 mod since;
 mod sources;
 mod time;
 mod timeline;
 mod tz;
 
-use std::path::PathBuf;
 use std::process::ExitCode;
 
 const USAGE: &str = "\
@@ -12,62 +12,40 @@ whatchanged - show what changed on this machine
 
 Usage: whatchanged [--since WHEN] [--until WHEN] [--only LIST] [--root DIR]
 
-  --since WHEN   start of the timeline (default: yesterday)
-                 WHEN can be: today, yesterday, 30m, 2h, 3d, 1w,
-                 2024-05-01, \"2024-05-01 09:00\"
-  --until WHEN   end of the timeline (default: now), same forms
-  --only LIST    only these sources, comma-separated:
-                 pkg, flatpak, snap, kernel, config, shell (or env),
-                 service, cron; pkg includes flatpak and snap
-  --root DIR     look at the system mounted at DIR instead of /
-                 (e.g. a broken install mounted from a rescue USB)
-  -h, --help     show this help
-  -V, --version  show the version
+  -s, --since WHEN  start of the timeline (default: yesterday)
+                    WHEN can be: today, yesterday, 30m, 2h, 3d, 1w,
+                    2024-05-01, \"2024-05-01 09:00\"
+  -u, --until WHEN  end of the timeline (default: now), same forms
+      --only LIST   only these sources, comma-separated:
+                    pkg, flatpak, snap, kernel, config, shell (or env),
+                    service, cron; pkg includes flatpak and snap
+      --root DIR    look at the system mounted at DIR instead of /
+                    (e.g. a broken install mounted from a rescue USB)
+  -h, --help        show this help
+  -V, --version     show the version
 
 Times are local, taken from $TZ or /etc/localtime.
 ";
 
 fn main() -> ExitCode {
-    let mut since_arg = String::from("yesterday");
-    let mut until_arg: Option<String> = None;
-    let mut only_arg: Option<String> = None;
-    let mut root = PathBuf::from("/");
-    let mut args = std::env::args().skip(1);
-    while let Some(arg) = args.next() {
-        match arg.as_str() {
-            "-h" | "--help" => {
-                print!("{USAGE}");
-                return ExitCode::SUCCESS;
-            }
-            "-V" | "--version" => {
-                println!("whatchanged {}", env!("CARGO_PKG_VERSION"));
-                return ExitCode::SUCCESS;
-            }
-            "--since" | "-s" => match args.next() {
-                Some(v) => since_arg = v,
-                None => return fail("--since needs a value, e.g. --since 2h"),
-            },
-            _ if arg.starts_with("--since=") => since_arg = arg["--since=".len()..].to_string(),
-            "--until" | "-u" => match args.next() {
-                Some(v) => until_arg = Some(v),
-                None => return fail("--until needs a value, e.g. --until today"),
-            },
-            _ if arg.starts_with("--until=") => {
-                until_arg = Some(arg["--until=".len()..].to_string())
-            }
-            "--only" => match args.next() {
-                Some(v) => only_arg = Some(v),
-                None => return fail("--only needs a list, e.g. --only pkg,config"),
-            },
-            _ if arg.starts_with("--only=") => only_arg = Some(arg["--only=".len()..].to_string()),
-            "--root" => match args.next() {
-                Some(v) => root = PathBuf::from(v),
-                None => return fail("--root needs a directory, e.g. --root /mnt"),
-            },
-            _ if arg.starts_with("--root=") => root = PathBuf::from(&arg["--root=".len()..]),
-            _ => return fail(&format!("unknown argument '{arg}'")),
+    let opts = match cli::parse(std::env::args().skip(1)) {
+        Ok(cli::Command::Help) => {
+            print!("{USAGE}");
+            return ExitCode::SUCCESS;
         }
-    }
+        Ok(cli::Command::Version) => {
+            println!("whatchanged {}", env!("CARGO_PKG_VERSION"));
+            return ExitCode::SUCCESS;
+        }
+        Ok(cli::Command::Run(o)) => o,
+        Err(e) => return fail(&e),
+    };
+    let cli::Options {
+        since: since_arg,
+        until: until_arg,
+        only: only_arg,
+        root,
+    } = opts;
 
     if !root.is_dir() {
         return fail(&format!("--root: {} is not a directory", root.display()));
