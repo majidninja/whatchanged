@@ -492,3 +492,38 @@ a testable function.
 Next: dnf's command for Fedora (check what dnf.log / dnf5.log record for
 the command line; skip the dnf5 SQLite history), or an integration test that
 runs every source against a small fake `--root` tree under `target/`.
+
+## 2026-11-12
+
+**Integration test against a fake `--root`**, no new dependencies.
+`tests/fake_root.rs` runs the real binary (`CARGO_BIN_EXE_whatchanged`)
+with `TZ=UTC` against small trees built under `CARGO_TARGET_TMPDIR`:
+- `every_source_shows_up`: dpkg + apt history, pacman, dnf, flatpak, snap,
+  kernel, /etc and ~/.config, shell files, systemd (unit + enable link),
+  crontab. Checks each shows up, with every kind of line present.
+- `only_and_until_narrow_the_timeline`: `--only pkg --until` cuts the rest.
+- `empty_root_...`: "Nothing changed since ..." on stdout, "Skipped:" on
+  stderr, exit 0.
+- `odd_and_large_logs_do_not_crash`: invalid UTF-8, a 1 MB line, broken
+  timestamps, 50k old lines, broken pacman/apt history; the one good line
+  still shows.
+- `bad_arguments_exit_2`: bad --since/--only/--until order/unknown flag/
+  missing root all exit 2 and point at --help.
+68 unit + 5 integration tests + 1 ignored. All sources passed first try;
+only my fixture was wrong (kernel needs `/boot/vmlinuz-VER` or a
+`vmlinuz` in the modules dir, not just the modules dir).
+
+### Before relying on it (for the first real use, ~2026-11-21)
+- File-based sources (config, env, service, cron, flatpak, snap, kernel)
+  use modification times. Restoring a backup, `cp -p`, rsync or a git
+  checkout can set old or new times, so a file may appear or vanish
+  from the timeline for reasons unrelated to a real edit.
+- Package logs: only the current and `.1` rotated logs are read; `.gz`
+  rotations are ignored, so `--since` far back may miss package changes.
+- A unit that is both created and enabled shows two lines (`enabled` and
+  `edited`). Harmless, but looks doubled.
+- Without root, some dirs (e.g. `/var/spool/cron/crontabs`) can't be read;
+  that's listed under "Skipped:" on stderr, not hidden.
+
+Next: maybe merge the doubled systemd "enabled"/"edited" lines for the same
+unit, or note `.gz` rotation in `--help`/README so nobody is surprised.
