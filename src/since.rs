@@ -32,7 +32,11 @@ pub fn parse_since(s: &str, now: i64, tz: &Tz) -> Result<i64, String> {
                 'w' => 7 * DAY,
                 _ => return Err(format!("unknown unit '{unit}' in '{s}' (use m, h, d or w)")),
             };
-            return Ok(now - n * secs);
+            // A silly number of weeks must not overflow.
+            return n
+                .checked_mul(secs)
+                .and_then(|back| now.checked_sub(back))
+                .ok_or_else(|| format!("'{s}' is too far back"));
         }
     }
     DateTime::parse(s)
@@ -58,6 +62,8 @@ mod tests {
         assert_eq!(parse_since("3d", NOW, &utc()), Ok(NOW - 3 * DAY));
         assert_eq!(parse_since("15m", NOW, &utc()), Ok(NOW - 15 * MINUTE));
         assert!(parse_since("3y", NOW, &utc()).is_err());
+        let err = parse_since("99999999999999999w", NOW, &utc()).unwrap_err();
+        assert!(err.contains("too far back"), "{err}");
     }
 
     #[test]

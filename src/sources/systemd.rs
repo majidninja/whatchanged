@@ -10,6 +10,9 @@
 //! `~/.config/systemd/user`. The `config` source skips those trees so
 //! nothing shows twice.
 //!
+//! A unit file written in the same minute it was enabled shows as one
+//! line, `foo.service edited and enabled`.
+//!
 //! Disabling a unit removes its symlink, which leaves nothing to date, so
 //! that isn't shown.
 
@@ -30,6 +33,8 @@ pub const HOME_DIR: &str = ".config/systemd/user";
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Change {
     Enabled(String),
+    /// Unit file written and enabled in the same minute (a new unit).
+    EditedAndEnabled(String),
     Masked(String),
     Edited(String),
 }
@@ -62,6 +67,7 @@ fn scan(
     changes: &mut Vec<(i64, Change)>,
     notes: &mut Vec<String>,
 ) {
+    let first = changes.len();
     for (path, name) in list(root, dir, notes) {
         let Ok(meta) = std::fs::symlink_metadata(under(root, &path)) else {
             continue;
@@ -93,6 +99,53 @@ fn scan(
                 changes.push((meta.mtime(), Change::Edited(path)));
             }
         }
+    }
+    merge_new_units(dir, label, changes, first);
+}
+
+/// A unit file written in the same minute it was enabled is one change
+/// to the person who did it (they added a unit), so show one line for it
+/// instead of an "enabled" and an "edited" one. Only looks at
+/// `changes[first..]`, the ones from `dir`.
+fn merge_new_units(dir: &str, label: &str, changes: &mut Vec<(i64, Change)>, first: usize) {
+    let mut merged = Vec::new();
+    for (time, change) in &changes[first..] {
+        let Change::Edited(path) = change else {
+            continue;
+        };
+        // Only unit files right in `dir`, not drop-ins below it.
+        let Some(unit) = path
+            .strip_prefix(dir)
+            .and_then(|p| p.strip_prefix('/'))
+            .filter(|u| !u.contains('/'))
+        else {
+            continue;
+        };
+        let enabled = Change::Enabled(format!("{unit}{label}"));
+        if changes[first..]
+            .iter()
+            .any(|(t, c)| t / 60 == time / 60 && *c == enabled)
+        {
+            merged.push((*time, path.clone(), enabled));
+        }
+    }
+    for (time, path, enabled) in merged {
+        let Change::Enabled(name) = &enabled else {
+            unreachable!()
+        };
+        let name = name.clone();
+        let mut i = first;
+        while i < changes.len() {
+            let (t, c) = &changes[i];
+            let same_minute = t / 60 == time / 60;
+            let edit = matches!(c, Change::Edited(p) if *p == path);
+            if same_minute && (edit || *c == enabled) {
+                changes.remove(i);
+            } else {
+                i += 1;
+            }
+        }
+        changes.push((time, Change::EditedAndEnabled(name)));
     }
 }
 
@@ -133,6 +186,7 @@ fn group(mut changes: Vec<(i64, Change)>) -> Vec<Event> {
     for (time, change) in changes {
         let (verb, name) = match change {
             Change::Enabled(n) => ("enabled", n),
+            Change::EditedAndEnabled(n) => ("edited and enabled", n),
             Change::Masked(n) => ("masked", n),
             Change::Edited(n) => ("edited", n),
         };
@@ -224,6 +278,53 @@ mod tests {
                 (127, "/etc/systemd/system/a.service edited".to_string()),
                 (200, "c.service masked".to_string()),
             ]
+        );
+    }
+
+    #[test]
+    fn a_unit_written_and_enabled_together_is_one_line() {
+        let dir = "/etc/systemd/system";
+        let e = |t, n: &str| (t, Change::Enabled(n.to_string()));
+        let f = |t, p: &str| (t, Change::Edited(format!("{dir}/{p}")));
+        let mut changes = vec![
+            e(5, "other.service"), // from another directory: left alone
+            f(125, "new.service"),
+            e(130, "new.service"),
+            e(131, "new.service"), // wanted by two targets
+            f(125, "old.service"),
+            e(600, "old.service"), // enabled later: two real changes
+            f(126, "lone.service"),
+            f(127, "new.service.d/override.conf"),
+            e(128, "pkg.service"),
+        ];
+        merge_new_units(dir, "", &mut changes, 1);
+        let texts: Vec<String> = group(changes).into_iter().map(|e| e.text).collect();
+        assert_eq!(
+            texts,
+            [
+                "other.service enabled",
+                "pkg.service enabled",
+                "new.service edited and enabled",
+                format!(
+                    "{dir}/lone.service, {dir}/new.service.d/override.conf, {dir}/old.service edited"
+                )
+                .as_str(),
+                "old.service enabled",
+            ]
+        );
+
+        // The label keeps a user's unit apart from a system one.
+        let mut changes = vec![
+            (
+                125,
+                Change::Edited("/home/a/.config/systemd/user/x.timer".into()),
+            ),
+            (125, Change::Enabled("x.timer (user a)".into())),
+        ];
+        merge_new_units("/home/a/.config/systemd/user", " (user a)", &mut changes, 0);
+        assert_eq!(
+            group(changes)[0].text,
+            "x.timer (user a) edited and enabled"
         );
     }
 
