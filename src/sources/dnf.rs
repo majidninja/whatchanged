@@ -22,10 +22,10 @@ use crate::timeline::{Event, SourceResult};
 use crate::tz::Tz;
 
 /// dnf rotates its log itself, to `dnf.rpm.log.1` and up.
-pub const LOGS: &[&str] = &["/var/log/dnf.rpm.log.1", "/var/log/dnf.rpm.log"];
+pub const LOGS: &[&str] = &["/var/log/dnf.rpm.log"];
 
 pub fn collect(root: &Path, since: i64, tz: &Tz) -> SourceResult {
-    let (texts, notes) = read_logs("dnf", root, LOGS);
+    let (texts, notes) = read_logs("dnf", root, LOGS, since);
     let mut events: Vec<Event> = texts.iter().flat_map(|t| parse(t, since, tz)).collect();
     events.extend(dnf5_event(root, since));
     SourceResult { events, notes }

@@ -20,69 +20,22 @@ pub fn collect(root: &Path, since: i64, tz: &Tz) -> SourceResult {
         all.events.extend(r.events);
         all.notes.extend(r.notes);
     }
-    all.notes.extend(unread_rotations(
-        root,
-        &[dpkg::LOGS, pacman::LOGS, dnf::LOGS].concat(),
-        since,
-    ));
     let logs: Vec<&str> = [dpkg::LOGS, pacman::LOGS, dnf::LOGS, &[dnf::DNF5_HISTORY]].concat();
-    // Unreadable logs already produced a note of their own.
-    if all.notes.is_empty() && !logs.iter().any(|p| under(root, p).exists()) {
+    // Unreadable logs already produced a note of their own, and events
+    // mean some log (perhaps only a rotated one) was read.
+    if all.notes.is_empty()
+        && all.events.is_empty()
+        && !logs.iter().any(|p| under(root, p).exists())
+    {
         all.notes.push(format!(
             "pkg: no package manager log found (looked for {})",
             logs.iter()
-                .filter(|p| !p.ends_with(".1"))
                 .map(|p| under(root, p).display().to_string())
                 .collect::<Vec<_>>()
                 .join(", ")
         ));
     }
     all
-}
-
-/// Rotated logs we don't read (`dpkg.log.2.gz`, `dnf.rpm.log.3`, ...)
-/// that were last written at or after `since`, so they may hold changes in
-/// the asked-for window. Only `.1` rotations are read: compressed ones would
-/// need a gzip decoder, and older ones are rarely wanted. One note per log,
-/// so nobody mistakes a gap for "nothing happened".
-pub fn unread_rotations(root: &Path, logs: &[&str], since: i64) -> Vec<String> {
-    use std::os::unix::fs::MetadataExt;
-    let mut notes = Vec::new();
-    for log in logs.iter().filter(|p| !p.ends_with(".1")) {
-        let full = under(root, log);
-        let (Some(dir), Some(base)) = (full.parent(), full.file_name()) else {
-            continue;
-        };
-        let prefix = format!("{}.", base.to_string_lossy());
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            continue;
-        };
-        let mut missed: Vec<String> = entries
-            .flatten()
-            .filter_map(|e| {
-                let name = e.file_name().to_string_lossy().into_owned();
-                let read = logs.iter().any(|l| under(root, l) == e.path());
-                let recent = e.metadata().is_ok_and(|m| m.mtime() >= since);
-                (name.starts_with(&prefix) && !read && recent).then_some(name)
-            })
-            .collect();
-        if missed.is_empty() {
-            continue;
-        }
-        missed.sort();
-        let shown = missed.len().min(3);
-        let more = if missed.len() > shown {
-            format!(" and {} more", missed.len() - shown)
-        } else {
-            String::new()
-        };
-        notes.push(format!(
-            "pkg: older rotated logs in {} are not read ({}{more}); package changes in them are missing",
-            dir.display(),
-            missed[..shown].join(", ")
-        ));
-    }
-    notes
 }
 
 /// One parsed package action, before grouping.
@@ -211,27 +164,26 @@ mod tests {
     }
 
     #[test]
-    fn notes_unread_rotations_written_since() {
-        let root = TestRoot::new("pkg-rotations");
-        root.file("/var/log/dpkg.log", "");
-        root.file("/var/log/dpkg.log.1", "");
-        root.file("/var/log/dpkg.log.2.gz", "");
-        root.file("/var/log/dpkg.log.3.gz", "");
-        root.file("/var/log/dpkg.logger", "");
-        // All files are new, so with since = 0 both .gz are reported.
-        let notes = unread_rotations(&root.0, dpkg::LOGS, 0);
-        assert_eq!(notes.len(), 1, "{notes:?}");
-        assert!(
-            notes[0].contains("(dpkg.log.2.gz, dpkg.log.3.gz)"),
-            "{}",
-            notes[0]
-        );
-        // Written long before since: they can't hold anything we want.
-        assert!(unread_rotations(&root.0, dpkg::LOGS, i64::MAX / 2).is_empty());
-        // No note when nothing is rotated.
-        let root = TestRoot::new("pkg-rotations-none");
-        root.file("/var/log/dpkg.log", "");
-        assert!(unread_rotations(&root.0, dpkg::LOGS, 0).is_empty());
+    fn reads_compressed_rotations_of_every_package_log() {
+        // "2024-05-01 14:00:00 install htop:amd64 <none> 3.3.0-4\n" as gzip.
+        let gz: &[u8] = &[
+            0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x03, 0x33, 0x32, 0x30, 0x32,
+            0xd1, 0x35, 0x30, 0xd5, 0x35, 0x30, 0x54, 0x30, 0x34, 0xb1, 0x32, 0x30, 0x00, 0x22,
+            0x85, 0xcc, 0xbc, 0xe2, 0x92, 0xc4, 0x9c, 0x1c, 0x85, 0x8c, 0x92, 0xfc, 0x02, 0xab,
+            0xc4, 0xdc, 0x14, 0x33, 0x13, 0x05, 0x9b, 0xbc, 0xfc, 0xbc, 0x54, 0x3b, 0x05, 0x63,
+            0x3d, 0x63, 0x3d, 0x03, 0x5d, 0x13, 0x2e, 0x00, 0xe2, 0x0c, 0x08, 0x8d, 0x36, 0x00,
+            0x00, 0x00,
+        ];
+        let root = TestRoot::new("pkg-gz");
+        root.bytes("/var/log/dpkg.log.2.gz", gz);
+        let r = collect(&root.0, 0, &Tz::utc());
+        assert!(r.notes.is_empty(), "{:?}", r.notes);
+        assert_eq!(r.events.len(), 1);
+        assert_eq!(r.events[0].text, "installed htop 3.3.0-4");
+        // Written before --since: not even opened.
+        root.set_mtime("/var/log/dpkg.log.2.gz", 1000);
+        let r = collect(&root.0, 2000, &Tz::utc());
+        assert!(r.events.is_empty());
     }
 
     #[test]

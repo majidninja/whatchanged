@@ -17,15 +17,15 @@ use crate::time::DateTime;
 use crate::timeline::{Event, SourceResult};
 use crate::tz::Tz;
 
-pub const LOGS: &[&str] = &["/var/log/dpkg.log.1", "/var/log/dpkg.log"];
+pub const LOGS: &[&str] = &["/var/log/dpkg.log"];
 
 /// apt's own log of runs. Optional: dpkg works fine without it.
-pub const APT_HISTORY: &[&str] = &["/var/log/apt/history.log.1", "/var/log/apt/history.log"];
+pub const APT_HISTORY: &[&str] = &["/var/log/apt/history.log"];
 
 pub fn collect(root: &Path, since: i64, tz: &Tz) -> SourceResult {
-    let (texts, mut notes) = read_logs("dpkg", root, LOGS);
+    let (texts, mut notes) = read_logs("dpkg", root, LOGS, since);
     let mut events: Vec<Event> = texts.iter().flat_map(|t| parse(t, since, tz)).collect();
-    let (history, apt_notes) = read_logs("apt", root, APT_HISTORY);
+    let (history, apt_notes) = read_logs("apt", root, APT_HISTORY, since);
     notes.extend(apt_notes);
     let runs: Vec<Run> = history.iter().flat_map(|t| apt_runs(t, tz)).collect();
     annotate(&mut events, &runs);

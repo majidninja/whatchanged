@@ -1,4 +1,5 @@
 mod cli;
+mod gzip;
 mod since;
 mod sources;
 mod time;

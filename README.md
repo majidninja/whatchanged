@@ -19,11 +19,12 @@ $ whatchanged --since yesterday
 Early days. Right now it reads:
 
 - the **dpkg log** (Debian, Ubuntu, Mint, ...): installs, upgrades,
-  removals and purges from `/var/log/dpkg.log` and `/var/log/dpkg.log.1`.
-  Older, compressed logs (`dpkg.log.2.gz` and up) are not read; if they
-  could hold changes in the time you asked about, whatchanged says so
-  under "Skipped:" instead of quietly showing less. The same goes for the
-  pacman and dnf logs.
+  removals and purges from `/var/log/dpkg.log` and its rotated copies
+  (`dpkg.log.1`, `dpkg.log.2.gz`, ...), so `--since 26w` goes as far back
+  as the logs on disk do. Only rotated logs written since the time you
+  asked about are opened. The same goes for the pacman and dnf logs. Logs
+  rotated with xz, bzip2 or zstd can't be read; whatchanged names them
+  under "Skipped:" instead of quietly showing less.
   If apt's `/var/log/apt/history.log` is there too, each line also says
   which command made the change and who ran it, so you can tell your own
   `apt upgrade` from an automatic one:
@@ -74,7 +75,9 @@ Early days. Right now it reads:
   writes) edited. It looks in `/etc/systemd/system`, `/etc/systemd/user` and
   each user's `~/.config/systemd/user`; user units are marked like
   `backup.timer (user alice)`. Disabling a unit deletes a link and leaves
-  nothing behind to date, so disables are not shown.
+  nothing behind to date, so disables are not shown. A unit file written
+  in the same minute it was enabled is one line:
+  `backup.service edited and enabled`.
 
 - **crontabs**, shown as `cron` lines: `/etc/crontab`, `/etc/cron.d/*`, the
   scripts in `/etc/cron.daily` and friends, and each user's own crontab (what

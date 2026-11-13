@@ -544,3 +544,39 @@ dependencies.
 
 Next: merge the doubled systemd "enabled"/"edited" lines for one unit, or
 check `--help` once more against the README before the 2026-11-21 first use.
+
+## 2026-11-13 (second session, interactive)
+
+**Read compressed and older rotated package logs**, still no dependencies.
+- `src/gzip.rs`: a small gzip reader (header, inflate with stored, fixed
+  and dynamic blocks, CRC-32 and length check, several members, an output
+  size limit). Bit-at-a-time decoding like zlib's `puff`: slow next to
+  zlib but rotated logs are small. Tests: fixtures for each block type,
+  every truncation and every single-bit flip of them (error or same
+  output, never a panic), the size limit. The ignored test
+  `matches_system_gzip` compares against `gzip -dc` on the machine's own
+  .gz files (`cargo test --release -- --ignored matches_system_gzip`);
+  7486 files matched on this box.
+- `sources::read_logs` now takes `since` and reads every rotation of a
+  log written at or after it: `x.log.N`, `x.log.N.gz`, and logrotate's
+  dated `x.log-20240501(.gz)`, oldest first. `.xz`/`.bz2`/`.zst` rotations
+  get a "not read" note; a damaged .gz gets "can't unpack ...". If both
+  `x.1` and `x.1.gz` exist only the plain one is read. Unpacking stops at
+  256 MB.
+- `LOGS` in dpkg/dnf/pacman (and apt history) now list only the base
+  name. `pkg::unread_rotations` and its "older rotated logs are not read"
+  note are gone: they are read now.
+- **systemd**: a unit file written in the same minute it was enabled is
+  one line, `backup.service edited and enabled`, instead of two
+  (`merge_new_units`, per unit directory so labels stay right).
+- `--since 99999999999999999w` said nothing useful (overflow: a panic in
+  debug builds); now "'...' is too far back".
+- 77 unit + 5 integration tests + 2 ignored. The fake-root test has a
+  `dpkg.log.2.gz`.
+
+For the first real use: the "Package logs: only the current and `.1`..."
+caveat above no longer applies. What is left: logs that logrotate already
+deleted are gone for good (Debian keeps 12 monthly dpkg logs).
+
+Next: check `--help` once more against the README; maybe a release
+(v0.2.0) before 2026-11-21, moving whatchanged-action's v1 tag after.

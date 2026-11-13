@@ -18,7 +18,7 @@ use crate::tz::Tz;
 pub const LOGS: &[&str] = &["/var/log/pacman.log"];
 
 pub fn collect(root: &Path, since: i64, tz: &Tz) -> SourceResult {
-    let (texts, notes) = read_logs("pacman", root, LOGS);
+    let (texts, notes) = read_logs("pacman", root, LOGS, since);
     let mut events = Vec::new();
     for t in &texts {
         let mut ev = parse(t, since, tz);
