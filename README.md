@@ -110,11 +110,14 @@ sudo apt install ./whatchanged_0.2.0_amd64.deb
 ```
 
 **Fedora, RHEL, Rocky, Alma, openSUSE, ...** (`aarch64` instead of `x86_64`
-on ARM; on openSUSE use `sudo zypper install --allow-unsigned-rpm`, the
-package isn't signed):
+on ARM). The package isn't signed, so Fedora 43 and newer and openSUSE need
+to be told that's fine:
 
 ```
-sudo dnf install https://github.com/majidninja/whatchanged/releases/download/v0.2.0/whatchanged-0.2.0-1.x86_64.rpm
+curl -LO https://github.com/majidninja/whatchanged/releases/download/v0.2.0/whatchanged-0.2.0-1.x86_64.rpm
+sudo dnf install --no-gpgchecks ./whatchanged-0.2.0-1.x86_64.rpm         # Fedora 43+
+sudo dnf install ./whatchanged-0.2.0-1.x86_64.rpm                        # RHEL, Rocky, Alma, older Fedora
+sudo zypper install --allow-unsigned-rpm ./whatchanged-0.2.0-1.x86_64.rpm   # openSUSE
 ```
 
 **Arch, Alpine, Void, NixOS and any other distro**: the static binary.
