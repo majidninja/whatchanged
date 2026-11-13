@@ -100,6 +100,14 @@ fn full_tree(root: &Path) {
     .unwrap();
 
     file(root, "etc/crontab", "0 3 * * * root /backup");
+
+    // Boots and a shutdown in May 2024 (see src/sources/boot.rs tests).
+    fs::create_dir_all(root.join("var/lib/wtmpdb")).unwrap();
+    fs::write(
+        root.join("var/lib/wtmpdb/wtmp.db"),
+        include_bytes!("data/wtmp.db"),
+    )
+    .unwrap();
 }
 
 #[test]
@@ -127,13 +135,19 @@ fn every_source_shows_up() {
         ".bashrc",
         "backup.service",
         "/etc/crontab",
+        "08:00  boot    booted 6.12.4-test",
+        "22:10  boot    shut down",
+        "22:11  boot    booted 6.12.5-test",
     ] {
         assert!(stdout.contains(want), "missing {want:?} in:\n{stdout}");
     }
     // Times in the timeline are in $TZ, which we set to UTC.
-    assert!(stdout.contains("2024-05-01\n  09:12  pkg"), "{stdout}");
+    assert!(
+        stdout.contains("2024-05-01\n  08:00  boot") && stdout.contains("\n  09:12  pkg"),
+        "{stdout}"
+    );
     // Every kind of event is there.
-    for kind in ["pkg", "kernel", "config", "env", "service", "cron"] {
+    for kind in ["pkg", "kernel", "boot", "config", "env", "service", "cron"] {
         let tag = format!("  {kind:<7} ");
         assert!(stdout.contains(&tag), "no {kind} line in:\n{stdout}");
     }
@@ -227,4 +241,59 @@ fn bad_arguments_exit_2() {
     }
     let out = run(&root.join("missing"), &[]);
     assert_eq!(out.status.code(), Some(2));
+}
+
+/// `--help`, the README and the man page must each mention every option
+/// and every source name, so none of them goes stale.
+#[test]
+fn docs_cover_every_option_and_source() {
+    let root = fresh("docs");
+    let help = run(&root, &["--help"]);
+    let help = String::from_utf8_lossy(&help.stdout).into_owned();
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let readme = fs::read_to_string(dir.join("README.md")).unwrap();
+    // In man pages a dash is written `\-`.
+    let man = fs::read_to_string(dir.join("doc/whatchanged.1"))
+        .unwrap()
+        .replace("\\-", "-")
+        .replace("\\fR", "")
+        .replace("\\fB", "");
+    let words = [
+        "--since",
+        "--until",
+        "--only",
+        "--root",
+        "--help",
+        "--version",
+        "-s",
+        "-u",
+        "pkg",
+        "flatpak",
+        "snap",
+        "kernel",
+        "boot",
+        "config",
+        "shell",
+        "env",
+        "service",
+        "cron",
+        "yesterday",
+        "30m",
+        "1w",
+    ];
+    for (name, text) in [
+        ("--help", &help),
+        ("README.md", &readme),
+        ("man page", &man),
+    ] {
+        for word in words {
+            assert!(text.contains(word), "{name} doesn't mention {word}");
+        }
+    }
+    // The man page carries the version in its header.
+    let version = env!("CARGO_PKG_VERSION");
+    assert!(
+        man.contains(&format!("whatchanged {version}")),
+        "man page version"
+    );
 }

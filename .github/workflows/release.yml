@@ -47,7 +47,7 @@ jobs:
         run: |
           name="whatchanged-$TAG-${{ matrix.target }}"
           mkdir "$name"
-          cp target/${{ matrix.target }}/release/whatchanged README.md LICENSE "$name/"
+          cp target/${{ matrix.target }}/release/whatchanged README.md LICENSE doc/whatchanged.1 "$name/"
           tar -czf "$name.tar.gz" "$name"
           sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
       - uses: actions/upload-artifact@v4

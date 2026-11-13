@@ -8,14 +8,15 @@ Notes to self between sessions. Read this first.
 2. [x] `--since` parsing: today, yesterday, 30m/2h/3d/1w, ISO dates
 3. [x] dpkg/apt source (`/var/log/dpkg.log`, `.log.1`), grouped per minute
 4. [x] Local time zone: parse `/etc/localtime` (TZif) or honour `TZ`; currently UTC
-5. [ ] Rotated gzip logs (`dpkg.log.2.gz` ...) — needs a tiny inflate or a crate (`flate2`?); decide
+5. [x] Rotated gzip logs (`dpkg.log.2.gz` ...) — own small inflate in `src/gzip.rs`
 6. [x] Kernels: `/lib/modules/*` + ctime of the vmlinuz image
 7. [x] Config files: mtimes under `/etc` and each `~/.config` (skip noisy paths, depth limit)
 8. [x] systemd: unit files and `*.wants/` symlinks in `/etc/systemd` and `~/.config/systemd`
 9. [x] Shell startup files: `~/.bashrc`, `~/.profile`, `~/.zshrc`, `/etc/profile.d`
 10. [x] Crontabs: `/etc/crontab`, `/etc/cron.d`, `/var/spool/cron` (may need root)
-11. [ ] Other package managers: pacman.log (done), dnf via `dnf.rpm.log` (done), dnf5 (last change only, done), flatpak (done), snap (done)
-12. [ ] CLI: `--only pkg,config`, `--until`; man page
+11. [x] Other package managers: pacman.log (done), dnf via `dnf.rpm.log` (done), dnf5 (last change only, done), flatpak (done), snap (done)
+12. [x] CLI: `--only pkg,config`, `--until`; man page (`doc/whatchanged.1`)
+15. [x] Boots and shutdowns (`boot` source) from wtmpdb / wtmp
 13. [x] Sources take a root path (`--root DIR`); `TestRoot` scratch dir for tests
 14. [x] With `--root`, read the time zone from `<root>/etc/localtime` too
 
@@ -580,3 +581,33 @@ deleted are gone for good (Debian keeps 12 monthly dpkg logs).
 
 Next: check `--help` once more against the README; maybe a release
 (v0.2.0) before 2026-11-21, moving whatchanged-action's v1 tag after.
+
+## 2026-11-13 (third session, interactive) — 0.2.0
+
+**New `boot` source, a man page, version 0.2.0.** Still no dependencies.
+- `src/sources/boot.rs`: `booted <kernel>` and `shut down` lines (kind
+  `boot`). Reads wtmpdb's SQLite file (`/var/lib/wtmpdb/wtmp.db`, else
+  `/var/log/wtmp.db`): rows with Type 1 have Login = boot time (usec),
+  Logout = shutdown, RemoteHost = kernel. Also the classic `/var/log/wtmp`
+  and `wtmp.1` (384-byte records; type 2 = boot, type 1 with user
+  `shutdown`). Falls back to `/proc/stat` btime for the running boot.
+  Records within 120 s of each other count as the same boot. Debian 13
+  writes boots only to wtmp.db, which is why the SQLite reader exists.
+- `src/sqlite.rs`: minimal read-only SQLite reader: file header, schema
+  table, table b-tree (interior + leaf pages), overflow pages, record
+  decoding. No WAL: a database in WAL mode with unsaved pages would read
+  slightly stale (wtmpdb uses a rollback journal). Fixture
+  `tests/data/many.db.gz` (512-byte pages, 400 rows, an overflow row) is
+  unpacked with our own gunzip in the test.
+- `doc/whatchanged.1`: man page; the release tarball now includes it.
+  `tests/fake_root.rs::docs_cover_every_option_and_source` fails if
+  `--help`, the README or the man page miss an option or a source name.
+- Cargo.toml is 0.2.0. Not tagged yet: the owner decides when. To release:
+  tag `v0.2.0`, run the release workflow (workflow_dispatch with the tag
+  if the push doesn't trigger it), then move whatchanged-action's `v1`.
+- 85 unit + 6 integration tests + 2 ignored.
+
+The roadmap is done. What could still come, none of it needed: dnf5's
+transaction history (SQLite; the reader is there now, but it needs a real
+Fedora database to test against), the command for dnf changes, `.xz`/`.zst`
+rotated logs.

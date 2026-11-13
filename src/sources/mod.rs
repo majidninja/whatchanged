@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use crate::timeline::SourceResult;
 use crate::tz::Tz;
 
+pub mod boot;
 pub mod cron;
 pub mod dnf;
 pub mod dpkg;
@@ -30,6 +31,7 @@ pub const SOURCES: &[(&str, &str)] = &[
     ("flatpak", "pkg"),
     ("snap", "pkg"),
     ("kernel", "kernel"),
+    ("boot", "boot"),
     ("config", "config"),
     ("shell", "env"),
     ("service", "service"),
@@ -82,6 +84,7 @@ pub fn collect_all(
                 "flatpak" => flatpak::collect(root, since),
                 "snap" => snap::collect(root, since),
                 "kernel" => kernel::collect(root, since),
+                "boot" => boot::collect(root, since),
                 "config" => etc::collect(root, since),
                 "shell" => shell::collect(root, since),
                 "service" => systemd::collect(root, since),

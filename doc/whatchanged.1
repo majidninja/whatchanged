@@ -1,0 +1,157 @@
+.TH WHATCHANGED 1 "November 2026" "whatchanged 0.2.0" "User Commands"
+.SH NAME
+whatchanged \- show a timeline of what changed on a Linux machine
+.SH SYNOPSIS
+.B whatchanged
+[\fB\-\-since\fR \fIWHEN\fR]
+[\fB\-\-until\fR \fIWHEN\fR]
+[\fB\-\-only\fR \fILIST\fR]
+[\fB\-\-root\fR \fIDIR\fR]
+.SH DESCRIPTION
+Something broke and it worked yesterday.
+.B whatchanged
+puts everything it can find about what changed since then on one timeline:
+package installs and upgrades, new kernels, boots and shutdowns, edited
+config files, shell startup files, systemd units and crontabs.
+.PP
+It only reads what is already on disk: package manager logs, file
+modification times and the login records. There is no daemon, nothing is
+sent anywhere and nothing is modified. It does not need root; what it
+could not read is listed at the end under "Skipped:" on standard error.
+.SH OPTIONS
+.TP
+\fB\-s\fR, \fB\-\-since\fR \fIWHEN\fR
+Start of the timeline. The default is
+.BR yesterday .
+.I WHEN
+can be
+.BR today ,
+.BR yesterday ,
+a time ago such as
+.BR 30m ,
+.BR 2h ,
+.B 3d
+or
+.BR 1w ,
+a date
+.RB ( 2024\-05\-01 )
+or a date and time
+.RB ( "2024\-05\-01 09:00" ).
+.TP
+\fB\-u\fR, \fB\-\-until\fR \fIWHEN\fR
+End of the timeline, in the same forms. The default is now.
+.TP
+\fB\-\-only\fR \fILIST\fR
+Show only some sources, as a comma-separated list of the names under
+.B SOURCES
+below, for example
+.BR "\-\-only pkg,config" .
+.TP
+\fB\-\-root\fR \fIDIR\fR
+Look at the system mounted at
+.I DIR
+instead of the running one, for example a broken install mounted from a
+rescue USB. Times are then shown in that system's time zone.
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Show a short help text.
+.TP
+\fB\-V\fR, \fB\-\-version\fR
+Show the version.
+.PP
+Options can also be written as
+.BR \-\-since=2h .
+.SH SOURCES
+.TP
+.B pkg
+Installs, upgrades and removals from the dpkg, pacman and dnf logs,
+including rotated and gzip-compressed logs, with the apt or pacman command
+that made the change when the log has it.
+.B \-\-only pkg
+also selects
+.B flatpak
+and
+.BR snap .
+.TP
+.B flatpak
+Flatpak apps and runtimes installed or updated, system-wide and per user.
+.TP
+.B snap
+Snaps installed or refreshed.
+.TP
+.B kernel
+Installed kernels, marking the running one and those not booted yet.
+.TP
+.B boot
+Boots (with the kernel version) and clean shutdowns, from wtmpdb's
+.I /var/lib/wtmpdb/wtmp.db
+or the classic
+.IR /var/log/wtmp .
+.TP
+.B config
+Files edited under
+.I /etc
+and each user's
+.IR ~/.config .
+.TP
+.BR shell " (or " env )
+Shell startup files such as
+.IR ~/.bashrc ,
+.I ~/.profile
+and
+.IR /etc/profile.d .
+Shown as
+.B env
+lines.
+.TP
+.B service
+systemd units enabled, masked or edited, system and per user.
+.TP
+.B cron
+System and per-user crontabs.
+.SH OUTPUT
+One line per change, grouped under a date line:
+.PP
+.nf
+.RS
+2024\-05\-01
+  09:12  pkg     upgraded  mesa 24.1\-1 \-> 24.2\-1 (apt upgrade, by alice)
+  14:40  config  /etc/pipewire/pipewire.conf edited
+  15:02  service docker.service enabled
+.RE
+.fi
+.PP
+Timelines longer than 15 lines end with a count per kind. Times are local,
+taken from
+.B TZ
+or
+.IR /etc/localtime .
+.SH EXIT STATUS
+.TP
+.B 0
+The timeline was printed, even if it is empty or some sources were skipped.
+.TP
+.B 2
+The arguments were wrong.
+.SH ENVIRONMENT
+.TP
+.B TZ
+Time zone for reading and showing times, for example
+.BR "TZ=UTC whatchanged \-\-since 2h" .
+.SH NOTES
+Most sources go by file modification times. Restoring a backup,
+.BR "cp \-p" ,
+rsync or a git checkout can set old or new times, so a file can show up or
+be missing for reasons other than an edit. Package logs that logrotate has
+already deleted are gone; how far back packages go depends on the distro's
+rotation.
+.SH EXAMPLES
+.nf
+whatchanged
+whatchanged \-\-since 3d
+whatchanged \-\-since 2024\-05\-01 \-\-until 2024\-05\-03
+whatchanged \-\-since 1w \-\-only pkg,boot
+sudo whatchanged \-\-root /mnt \-\-since 3d
+.fi
+.SH SEE ALSO
+https://github.com/majidninja/whatchanged

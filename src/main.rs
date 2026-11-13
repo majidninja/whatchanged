@@ -2,6 +2,7 @@ mod cli;
 mod gzip;
 mod since;
 mod sources;
+mod sqlite;
 mod time;
 mod timeline;
 mod tz;
@@ -18,8 +19,9 @@ Usage: whatchanged [--since WHEN] [--until WHEN] [--only LIST] [--root DIR]
                     2024-05-01, \"2024-05-01 09:00\"
   -u, --until WHEN  end of the timeline (default: now), same forms
       --only LIST   only these sources, comma-separated:
-                    pkg, flatpak, snap, kernel, config, shell (or env),
-                    service, cron; pkg includes flatpak and snap
+                    pkg, flatpak, snap, kernel, boot, config,
+                    shell (or env), service, cron; pkg includes
+                    flatpak and snap
       --root DIR    look at the system mounted at DIR instead of /
                     (e.g. a broken install mounted from a rescue USB)
   -h, --help        show this help

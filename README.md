@@ -12,6 +12,8 @@ $ whatchanged --since yesterday
   06:16  pkg     upgraded  nginx 1.26.3-3+deb13u9 -> 1.26.3-3+deb13u10, ca-certificates 20250419 -> 20250419+deb13u1
   18:58  pkg     installed mesa-vulkan-drivers 25.0.7-2+deb13u1
   18:59  kernel  installed 6.12.113+deb13-amd64 (not booted yet)
+  23:04  boot    shut down
+  23:05  boot    booted 6.12.113+deb13-amd64
 ```
 
 ## Status
@@ -56,6 +58,11 @@ Early days. Right now it reads:
 - **installed kernels** (any distro). It also tells you which one is running,
   and marks kernels installed since the last boot as "not booted yet", which
   is a common answer to "why is it different after the reboot?"
+- **boots and shutdowns**, shown as `boot` lines: `booted 6.12.5-amd64`
+  (with the kernel that came up) and `shut down`. They come from the login
+  records: wtmpdb's `/var/lib/wtmpdb/wtmp.db` on newer distros (Debian 13,
+  Fedora 43), the classic `/var/log/wtmp` on others. A crash or power cut
+  leaves no "shut down" line, only the next "booted".
 - **shell startup files**: `~/.bashrc`, `~/.profile`, `~/.zshrc`, fish's
   `config.fish`, `/etc/profile`, `/etc/profile.d/*`, `/etc/environment`, ...
   for every user in `/home` (and `/root`, if you're allowed to look there).
@@ -101,6 +108,8 @@ tag=$(curl -s https://api.github.com/repos/majidninja/whatchanged/releases/lates
 curl -LO "https://github.com/majidninja/whatchanged/releases/download/$tag/whatchanged-$tag-$arch-unknown-linux-musl.tar.gz"
 tar -xzf whatchanged-*.tar.gz
 sudo install whatchanged-*/whatchanged /usr/local/bin/
+# optional: the man page (releases after v0.1.0 include it)
+sudo install -Dm644 whatchanged-*/whatchanged.1 /usr/local/share/man/man1/whatchanged.1
 ```
 
 Or build it from source with a Rust toolchain ([rustup.rs](https://rustup.rs)):
@@ -131,12 +140,14 @@ whatchanged --since 1w --only pkg                   # packages (incl. flatpak, s
 whatchanged --only config,service,env
 ```
 
-The names for `--only` are `pkg`, `flatpak`, `snap`, `kernel`, `config`,
+The names for `--only` are `pkg`, `flatpak`, `snap`, `kernel`, `boot`, `config`,
 `shell` (or `env`), `service` and `cron`. Mistype one and it tells you the
 valid names.
 
 `-s` and `-u` are short for `--since` and `--until`, and every option also
-works as `--since=2h`. `whatchanged --help` lists them all.
+works as `--since=2h`. `whatchanged --help` lists them all, `--version`
+prints the version, and `man whatchanged` has the long form if you
+installed the man page.
 
 If the machine won't boot at all, start a rescue/live USB, mount the broken
 system somewhere, and point `whatchanged` at it:

@@ -88,14 +88,14 @@ fn install_time(root: &Path, version: &str) -> Option<i64> {
         .map(|m| m.ctime())
 }
 
-fn read_trimmed(root: &Path, path: &str) -> Option<String> {
+pub fn read_trimmed(root: &Path, path: &str) -> Option<String> {
     let s = std::fs::read_to_string(under(root, path)).ok()?;
     let s = s.trim();
     (!s.is_empty()).then(|| s.to_string())
 }
 
 /// Boot time from the `btime` line of `/proc/stat`.
-fn boot_time(stat: &str) -> Option<i64> {
+pub fn boot_time(stat: &str) -> Option<i64> {
     stat.lines()
         .find_map(|l| l.strip_prefix("btime "))
         .and_then(|v| v.trim().parse().ok())
