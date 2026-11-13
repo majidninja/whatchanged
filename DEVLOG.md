@@ -611,3 +611,22 @@ The roadmap is done. What could still come, none of it needed: dnf5's
 transaction history (SQLite; the reader is there now, but it needs a real
 Fedora database to test against), the command for dnf changes, `.xz`/`.zst`
 rotated logs.
+
+## 2026-11-13 (fourth session, interactive) — packages
+
+**.deb and .rpm packages on each release.** No code change.
+- `packaging/build-packages.sh TAG DIR` turns the release tarballs into
+  `whatchanged_VER_{amd64,arm64}.deb` (dpkg-deb) and
+  `whatchanged-VER-1.{x86_64,aarch64}.rpm` (rpmbuild, gzip payload, sha256
+  file digests, no auto requires), each with a `.sha256`. They install
+  the binary, the man page, the README and the licence.
+- release.yml's `release` job runs it, installs the amd64 .deb on the
+  runner and the x86_64 .rpm in Fedora and openSUSE containers as a smoke
+  test, then uploads everything. The job checks out the branch the
+  workflow runs on (not the tag), so `workflow_dispatch` with an older
+  tag can add packages to that release.
+- The README install section pins v0.2.0 in the .deb/.rpm URLs: update
+  those lines when a new version is released.
+- The tarball asset names are unchanged (whatchanged-action depends on
+  them). Packages are not signed, and there is no apt/dnf repository:
+  upgrades mean downloading the new package.

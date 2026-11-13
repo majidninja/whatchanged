@@ -98,9 +98,26 @@ in another zone, set it for one run, e.g. `TZ=UTC whatchanged --since 2h`.
 
 ## Install
 
-Prebuilt static binaries for x86_64 and aarch64 Linux are on the
-[releases page](https://github.com/majidninja/whatchanged/releases). They run
-on any distro:
+Packages for x86_64 and aarch64 are on the
+[releases page](https://github.com/majidninja/whatchanged/releases). The
+binary is static, so the same package works on every release of a distro.
+
+**Debian, Ubuntu, Mint, ...** (`arm64` instead of `amd64` on ARM):
+
+```
+curl -LO https://github.com/majidninja/whatchanged/releases/download/v0.2.0/whatchanged_0.2.0_amd64.deb
+sudo apt install ./whatchanged_0.2.0_amd64.deb
+```
+
+**Fedora, RHEL, Rocky, Alma, openSUSE, ...** (`aarch64` instead of `x86_64`
+on ARM; on openSUSE use `sudo zypper install --allow-unsigned-rpm`, the
+package isn't signed):
+
+```
+sudo dnf install https://github.com/majidninja/whatchanged/releases/download/v0.2.0/whatchanged-0.2.0-1.x86_64.rpm
+```
+
+**Arch, Alpine, Void, NixOS and any other distro**: the static binary.
 
 ```
 arch=$(uname -m)   # x86_64 or aarch64
@@ -108,9 +125,12 @@ tag=$(curl -s https://api.github.com/repos/majidninja/whatchanged/releases/lates
 curl -LO "https://github.com/majidninja/whatchanged/releases/download/$tag/whatchanged-$tag-$arch-unknown-linux-musl.tar.gz"
 tar -xzf whatchanged-*.tar.gz
 sudo install whatchanged-*/whatchanged /usr/local/bin/
-# optional: the man page (releases after v0.1.0 include it)
+# optional: the man page
 sudo install -Dm644 whatchanged-*/whatchanged.1 /usr/local/share/man/man1/whatchanged.1
 ```
+
+Every file on the releases page has a `.sha256` next to it. To remove a
+package again: `sudo apt remove whatchanged` or `sudo dnf remove whatchanged`.
 
 Or build it from source with a Rust toolchain ([rustup.rs](https://rustup.rs)):
 

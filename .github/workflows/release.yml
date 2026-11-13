@@ -59,18 +59,39 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      # The packaging script comes from the branch the workflow runs on,
+      # so packages can also be added to an older tag's release.
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
+          path: dist
+      - name: Build .deb and .rpm packages
+        run: |
+          command -v rpmbuild >/dev/null || { sudo apt-get update -q; sudo apt-get install -y -q rpm; }
+          packaging/build-packages.sh "$TAG" dist
+          ls -l dist
+      - name: Smoke test the packages
+        run: |
+          version=${TAG#v}
+          sudo dpkg -i "dist/whatchanged_${version}_amd64.deb"
+          [ "$(whatchanged --version)" = "whatchanged $version" ]
+          dpkg -L whatchanged | grep -q man1/whatchanged.1.gz
+          sudo dpkg -r whatchanged
+          for image in fedora:latest opensuse/leap:latest; do
+            out=$(docker run --rm -v "$PWD/dist:/dist:ro" "$image" sh -c \
+              "rpm -i /dist/whatchanged-$version-1.x86_64.rpm && whatchanged --version && whatchanged --since 1d")
+            grep -qx "whatchanged $version" <<<"$out"
+          done
       - name: Create or update the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          ls -l
+          cd dist
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" whatchanged-* --clobber
+            gh release upload "$TAG" whatchanged[-_]* --clobber
           else
-            gh release create "$TAG" whatchanged-* --verify-tag --title "$TAG" \
-              --notes "Static Linux binaries (x86_64 and aarch64, musl). Each .tar.gz has a matching .sha256 file."
+            gh release create "$TAG" whatchanged[-_]* --verify-tag --title "$TAG" \
+              --notes "Linux packages for x86_64 and aarch64: .deb (Debian, Ubuntu, Mint), .rpm (Fedora, RHEL, openSUSE) and a static .tar.gz for everything else. Each file has a matching .sha256 file."
           fi
