@@ -20,6 +20,10 @@ Early days. Right now it reads:
 
 - the **dpkg log** (Debian, Ubuntu, Mint, ...): installs, upgrades,
   removals and purges from `/var/log/dpkg.log` and `/var/log/dpkg.log.1`.
+  Older, compressed logs (`dpkg.log.2.gz` and up) are not read; if they
+  could hold changes in the time you asked about, whatchanged says so
+  under "Skipped:" instead of quietly showing less. The same goes for the
+  pacman and dnf logs.
   If apt's `/var/log/apt/history.log` is there too, each line also says
   which command made the change and who ran it, so you can tell your own
   `apt upgrade` from an automatic one:

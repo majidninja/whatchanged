@@ -527,3 +527,20 @@ only my fixture was wrong (kernel needs `/boot/vmlinuz-VER` or a
 
 Next: maybe merge the doubled systemd "enabled"/"edited" lines for the same
 unit, or note `.gz` rotation in `--help`/README so nobody is surprised.
+
+## 2026-11-13
+
+**Say when rotated package logs we don't read may hold changes**, no new
+dependencies.
+- `pkg::unread_rotations`: for each package log (dpkg, pacman, dnf), lists
+  sibling files like `dpkg.log.2.gz` / `dnf.rpm.log.3` that we don't read
+  and whose mtime is at or after `--since` (gzip keeps the mtime of the
+  last write, so an older mtime means nothing in the window). One
+  "Skipped:" note per log dir, up to 3 names then "and N more".
+- On this box `--since 60d --only pkg` now says `dpkg.log.2.gz` isn't read.
+- README mentions it under the dpkg source. 69 unit + 5 integration tests.
+- apt's history.log rotations are not checked: they only add the
+  "(apt upgrade, by ...)" annotation, so missing them loses no events.
+
+Next: merge the doubled systemd "enabled"/"edited" lines for one unit, or
+check `--help` once more against the README before the 2026-11-21 first use.
