@@ -78,11 +78,20 @@ jobs:
           [ "$(whatchanged --version)" = "whatchanged $version" ]
           dpkg -L whatchanged | grep -q man1/whatchanged.1.gz
           sudo dpkg -r whatchanged
-          for image in fedora:latest opensuse/leap:latest; do
+          rpm=/dist/whatchanged-$version-1.x86_64.rpm
+          # The packages are not signed. Fedora 43+ (rpm 6) refuses those
+          # unless told otherwise; older dnf and plain rpm install them.
+          while read -r image install; do
+            echo "::group::$image: $install"
             out=$(docker run --rm -v "$PWD/dist:/dist:ro" "$image" sh -c \
-              "rpm -i /dist/whatchanged-$version-1.x86_64.rpm && whatchanged --version && whatchanged --since 1d")
+              "$install $rpm >&2 && whatchanged --version && whatchanged --since 1d")
+            echo "::endgroup::"
             grep -qx "whatchanged $version" <<<"$out"
-          done
+          done <<'IMAGES'
+          fedora:latest dnf install -y --no-gpgchecks
+          rockylinux/rockylinux:9 dnf install -y
+          opensuse/leap:latest zypper --non-interactive install --allow-unsigned-rpm
+          IMAGES
       - name: Create or update the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
