@@ -630,3 +630,21 @@ rotated logs.
 - The tarball asset names are unchanged (whatchanged-action depends on
   them). Packages are not signed, and there is no apt/dnf repository:
   upgrades mean downloading the new package.
+
+## 2026-11-14 — maintenance
+
+**Fixed: `--since -2h` (or `--until -1d`) was taken as two hours in the
+future.** The number was parsed as a negative i64, so the start time was
+`now + 2h` and the answer was "Nothing changed since -2h (that I could
+see)" with exit code 0, which reads like a real result. Now it is an error:
+`--since: '-2h' would be in the future (for 2h ago, write 2h)`. Only the
+relative forms (`m`, `h`, `d`, `w`) are affected; `+2h` still means `2h`.
+Test: `since::tests::negative_relative_is_an_error`.
+
+Seen but not fixed today (one fix per session): a date with an absurd year,
+e.g. `--since 999999999999999999-01-01`, overflows in `days_from_civil`
+(wraps in release builds and prints a timeline from a nonsense start;
+would panic in a debug build).
+
+### Unreleased fixes (since v0.2.0)
+- 2026-11-14: negative relative `--since`/`--until` is an error.

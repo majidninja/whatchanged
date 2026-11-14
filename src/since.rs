@@ -25,6 +25,14 @@ pub fn parse_since(s: &str, now: i64, tz: &Tz) -> Result<i64, String> {
     if let Some(unit) = s.chars().last().filter(|c| c.is_ascii_alphabetic()) {
         let num = &s[..s.len() - 1];
         if let Ok(n) = num.parse::<i64>() {
+            // "-2h" would be two hours in the future: an empty timeline
+            // with no hint why.
+            if n < 0 {
+                let plain = num.trim_start_matches('-');
+                return Err(format!(
+                    "'{s}' would be in the future (for {plain}{unit} ago, write {plain}{unit})"
+                ));
+            }
             let secs = match unit {
                 'm' => MINUTE,
                 'h' => HOUR,
@@ -64,6 +72,15 @@ mod tests {
         assert!(parse_since("3y", NOW, &utc()).is_err());
         let err = parse_since("99999999999999999w", NOW, &utc()).unwrap_err();
         assert!(err.contains("too far back"), "{err}");
+    }
+
+    #[test]
+    fn negative_relative_is_an_error() {
+        // Used to give now + 2h, so the timeline was silently empty.
+        let err = parse_since("-2h", NOW, &utc()).unwrap_err();
+        assert!(err.contains("write 2h"), "{err}");
+        assert!(parse_since("-9223372036854775808w", NOW, &utc()).is_err());
+        assert_eq!(parse_since("0d", NOW, &utc()), Ok(NOW));
     }
 
     #[test]
